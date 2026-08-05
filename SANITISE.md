@@ -11,7 +11,7 @@ checklist, not an incident log.
 
 | Source | Finding | Action |
 |---|---|---|
-| `034_pulumi/gcp-infra/.tmp-nextflow-head.hcl` | Literal Nomad ACL token (`TOKEN = "55099fae-…"`), a stray temp artefact dated 2026-03-24 | **Rotate the token**, then delete the file. Do not migrate. |
+| `034_pulumi/gcp-infra/.tmp-nextflow-head.hcl` | Literal Nomad ACL token assigned to a `TOKEN` field (value withheld), a stray temp artefact dated 2026-03-24 | **Rotate the token**, then delete the file. Do not migrate. |
 | `034_pulumi/oracle-infra/Pulumi.dev.yaml` | Real OCI compartment and tenancy OCIDs | Replace with `ocid1.compartment.oc1..<YOUR_COMPARTMENT>` placeholders |
 | `034_pulumi/*/id_ed25519`, `id_ed25519.pub` | SSH keypairs, incl. two **private** keys | Never migrate. Templates must generate or accept a key at deploy time. |
 | `034_pulumi/*/node_modules/` | ~1.6 GB of dependencies | Never migrate. `package.json` + lockfile only. |
