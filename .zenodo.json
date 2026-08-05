@@ -1,0 +1,13 @@
+{
+  "title": "nf-nomad deployment and validation templates",
+  "upload_type": "software",
+  "license": "Apache-2.0",
+  "description": "<p>Reproducible infrastructure templates and a reviewer protocol for <strong>nf-nomad</strong>, the Nextflow executor plugin for HashiCorp Nomad. Includes a single-laptop Multipass deployment, a heterogeneous cloud deployment spanning OCI and GCP preemptible instances, per-mode Nextflow configurations (shared POSIX filesystem, Fusion, nf-nomad-s5cmd), and a preemption-resilience harness.</p><p>Companion artefact to the nf-nomad manuscript.</p>",
+  "keywords": ["Nextflow", "HashiCorp Nomad", "bioinformatics", "workflow management", "reproducibility", "infrastructure as code"],
+  "creators": [
+    {"name": "Sharma, Abhinav", "orcid": "0000-0002-6402-6993"}
+  ],
+  "related_identifiers": [
+    {"identifier": "https://github.com/nextflow-io/nf-nomad", "relation": "isSupplementTo", "scheme": "url"}
+  ]
+}

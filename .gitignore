@@ -1,0 +1,29 @@
+# ── Hard blocks. This repo is published to Zenodo; nothing below may ever enter it.
+# Credentials
+id_*
+*.pem
+*.key
+*.p12
+.env
+.envrc
+*credentials*
+*.tfvars
+
+# Pulumi / Terraform state and local backends
+.pulumi/
+Pulumi.*.yaml.bak
+*.tfstate
+*.tfstate.*
+.terraform/
+MANIFEST-*
+LOCK
+CURRENT
+LOG
+*.ldb
+*.sst
+
+# Build noise
+node_modules/
+.DS_Store
+*.log
+.tmp-*
