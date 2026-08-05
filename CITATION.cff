@@ -1,9 +1,9 @@
 cff-version: 1.2.0
-title: nf-nomad deployment and validation templates
-message: If you use these templates, please cite both this record and the nf-nomad manuscript.
+title: nf-nomad manuscript assets
+message: If you use these assets, please cite both this record and the nf-nomad manuscript.
 type: software
 license: Apache-2.0
-repository-code: "https://github.com/abhi18av/nf-nomad-templates"
+repository-code: "https://github.com/abhi18av-phd-projects/nf-nomad-manuscript-assets"
 abstract: >-
   Reproducible infrastructure templates and a reviewer protocol for nf-nomad, the Nextflow
   executor plugin for HashiCorp Nomad. Provides a single-laptop Multipass deployment and a

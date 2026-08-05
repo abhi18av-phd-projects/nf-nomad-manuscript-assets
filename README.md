@@ -1,6 +1,6 @@
-# nf-nomad deployment and validation templates
+# nf-nomad manuscript assets
 
-Reproducible infrastructure templates and a reviewer protocol for **nf-nomad**, the Nextflow
+Deployment templates, validation configurations and a reviewer protocol for **nf-nomad**, the Nextflow
 executor plugin for HashiCorp Nomad.
 
 This repository is the companion artefact to the nf-nomad manuscript. It exists so that a

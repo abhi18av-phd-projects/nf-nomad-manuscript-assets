@@ -1,5 +1,5 @@
 {
-  "title": "nf-nomad deployment and validation templates",
+  "title": "nf-nomad manuscript assets",
   "upload_type": "software",
   "license": "Apache-2.0",
   "description": "<p>Reproducible infrastructure templates and a reviewer protocol for <strong>nf-nomad</strong>, the Nextflow executor plugin for HashiCorp Nomad. Includes a single-laptop Multipass deployment, a heterogeneous cloud deployment spanning OCI and GCP preemptible instances, per-mode Nextflow configurations (shared POSIX filesystem, Fusion, nf-nomad-s5cmd), and a preemption-resilience harness.</p><p>Companion artefact to the nf-nomad manuscript.</p>",
