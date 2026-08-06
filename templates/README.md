@@ -1,12 +1,19 @@
 # Templates
 
+**See [`ARCHITECTURE.md`](ARCHITECTURE.md)** for a diagram of what each template provisions,
+and for a documented gap between the manuscript's §3.1 local-template claim and the code.
+
 Two deployment templates, both sanitised for publication. Every site-specific value is a
 placeholder in angle brackets — substitute before deploying.
 
-## `local-multipass/` — one laptop, no cloud account
+## `local-multipass/` — ⚠ incomplete
 
-A Nomad server plus N client VMs on a single machine via Multipass. This is the intended
-starting point for a reviewer, and it is also the plugin's own CI environment.
+**This does not currently provision a Nomad cluster.** `setup.sh` is an unrendered copier
+template that launches one general-purpose VM; `start_nomad.sh` runs `nomad agent -dev` on the
+host; `local_nomadlab.hcl` hard-codes an absolute path and enables privileged Docker. The
+manuscript describes a Pulumi + Multipass 1-server + N-client cluster — that project does not
+exist in the source tree. See [`ARCHITECTURE.md`](ARCHITECTURE.md). Closing this is X0 in the
+experiment plan.
 
 ```
 setup.sh                        provision the VMs
