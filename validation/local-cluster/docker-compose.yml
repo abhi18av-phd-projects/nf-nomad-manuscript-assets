@@ -2,7 +2,11 @@
 #   1 server (schedules, runs nothing) + N clients (run tasks) + MinIO (S3 work dir).
 # Scale clients with:  docker compose up -d --scale nomad-client=5
 services:
+  # Only needed for the s5cmd work-dir mode (X2). The cluster-level reallocation test
+  # (X3) is pure scheduling — nothing stages data — so MinIO is opt-in via a profile
+  # and the default cluster is server + clients only.
   minio:
+    profiles: ["storage"]
     image: minio/minio:latest
     command: server /data --console-address ":9001"
     environment:

@@ -3,9 +3,14 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 CLIENTS="${CLIENTS:-3}"
+# MinIO is only required by the s5cmd work-dir mode. The reallocation test needs
+# scheduling alone, so storage is opt-in:  WITH_STORAGE=1 ./scripts/start.sh
+WITH_STORAGE="${WITH_STORAGE:-0}"
+PROFILE_ARGS=()
+[ "$WITH_STORAGE" = "1" ] && PROFILE_ARGS=(--profile storage)
 
-docker compose build
-docker compose up -d --scale nomad-client="$CLIENTS"
+docker compose "${PROFILE_ARGS[@]}" build
+docker compose "${PROFILE_ARGS[@]}" up -d --scale nomad-client="$CLIENTS"
 
 export NOMAD_ADDR="http://127.0.0.1:4646"
 echo "waiting for the server…"
@@ -34,4 +39,9 @@ echo
 echo "  cluster ready — $CLIENTS clients"
 echo "  export NOMAD_ADDR=$NOMAD_ADDR"
 echo "  export NOMAD_TOKEN=\$(cat $(pwd)/.nomad-token)"
-echo "  UI: $NOMAD_ADDR    MinIO: http://127.0.0.1:9001 (minioadmin/minioadmin)"
+echo "  UI: $NOMAD_ADDR"
+if [ "$WITH_STORAGE" = "1" ]; then
+  echo "  MinIO: http://127.0.0.1:9001 (minioadmin/minioadmin)"
+else
+  echo "  (no object store — WITH_STORAGE=1 adds MinIO for the s5cmd mode)"
+fi

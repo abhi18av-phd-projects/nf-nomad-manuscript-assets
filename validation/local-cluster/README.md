@@ -4,11 +4,18 @@ One command brings up a multi-node Nomad cluster with an S3 endpoint, on any mac
 Docker. No cloud account, no VM layer, no credentials.
 
 ```bash
-./scripts/start.sh          # server + 3 clients + MinIO
-./scripts/run-pipeline.sh   # a pipeline through nf-nomad
-./scripts/chaos.sh          # kill a client mid-run (preemption trial)
+./scripts/start.sh                  # server + 3 clients
+./scripts/chaos.sh                  # stop a client mid-run (reallocation trial)
 ./scripts/stop.sh
+
+WITH_STORAGE=1 ./scripts/start.sh   # adds MinIO, only needed for the s5cmd mode
+CLIENTS=5 ./scripts/start.sh        # more nodes
 ```
+
+**No object store by default.** The cluster-level test is scheduling and reallocation —
+nothing stages data — so MinIO sits behind a compose profile and the default cluster is
+four containers rather than five. It is opt-in for X2, where the s5cmd work-dir mode
+needs an S3 endpoint.
 
 ## Why Docker rather than Multipass
 
@@ -42,9 +49,10 @@ Brought up and exercised end to end on Docker Desktop 24.0.2, 8 CPU / 16 GB, mac
 
 | | |
 |---|---|
-| Cluster | 1 server + 3 clients + MinIO, all `ready` |
+| Cluster | 1 server + 3 clients, all `ready` (MinIO not required) |
 | Placement | a 6-allocation job spread across all three clients |
-| Recovery | **3 trials, median 26 s** (26, 26, 27) — node stopped, 3 allocations displaced, job back to 6/6 on survivors |
+| Recovery | **4 trials, median 26 s** (24, 26, 26, 27) — node stopped, allocations displaced, job back to 6/6 on survivors |
+| Storage-free | the last trial ran on a cluster with **no object store at all**, confirming reallocation needs only the scheduler |
 
 `trials.tsv` holds the rows. **n=3 is a smoke test, not a result** — X3 calls for 10 trials
 against the randomised workload, not a fixed-duration sleeper.
@@ -54,7 +62,7 @@ against the randomised workload, not a fixed-duration sleeper.
 | | |
 |---|---|
 | **X0** provision + first pipeline | time `start.sh` → first completed pipeline |
-| **X2** mode equivalence | MinIO is present, so the s5cmd and Fusion modes both run here |
+| **X2** mode equivalence | `WITH_STORAGE=1` brings up MinIO for the s5cmd mode; Fusion needs only network reach |
 | **X3** preemption | `chaos.sh` stops a client mid-run; measure reschedule latency |
 
 X1 (substrate neutrality) needs real hardware and stays on the institutional cluster.

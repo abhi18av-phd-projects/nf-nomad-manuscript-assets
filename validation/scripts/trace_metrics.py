@@ -72,7 +72,9 @@ def analyse(path):
             completes.append(comp)
 
     span = (max(completes) - min(submits)).total_seconds() if submits and completes else None
+    has_start = any((r.get("start") or "").strip() not in ("", "-") for r in rows)
     return {
+        "has_start": has_start,
         "trace": path,
         "tasks": len(rows),
         "statuses": statuses,
@@ -110,6 +112,11 @@ def main():
               f"{_fmt(r['lat_p50']):>7} {_fmt(r['lat_p95']):>7} "
               f"{_fmt(r['lat_p99']):>7} {_fmt(r['lat_max']):>7}")
     print("\nplacement latency = start - submit, in seconds")
+    for r in results:
+        if not r.get("has_start"):
+            print(f"  NOTE {r['trace'].split('/')[-1]}: no `start` column — this trace uses Nextflow's\n"
+                  f"       DEFAULT fields, so placement latency is NOT derivable. Request\n"
+                  f"       `submit,start,complete` in the trace config (see nextflow.trace.config).")
     for r in results:
         print(f"  {r['trace'].split('/')[-1]}: statuses={r['statuses']}")
 
