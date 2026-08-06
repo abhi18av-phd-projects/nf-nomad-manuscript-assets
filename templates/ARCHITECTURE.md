@@ -9,13 +9,18 @@ rather than from the manuscript text. Where the two disagree, the disagreement i
 
 **Read this before reviewing the local template.** The manuscript (§3.1, Supplementary S1)
 describes *"a Pulumi + Multipass project [that] provisions a 1-server + N-client Nomad cluster
-on a single laptop (≥16 GB RAM) in under 30 minutes"*. **No such project exists in the source
-tree.** What is here is two unrelated pieces:
+on a single laptop (≥16 GB RAM) in under 30 minutes"*.
+
+**That project exists, but it is not in this repository.** It is a native Pulumi provider
+(`pulumi-provider-multipass`, implemented 2026-05-08) that exposes Multipass VM lifecycle as
+typed Pulumi resources and instantiates the `single_node` / `single_server_with_clients` /
+`multi_server` topologies. It lives in a **separate private repository** and was not migrated
+here. What *is* here is two unrelated pieces that do not add up to the claimed template:
 
 ```mermaid
 graph TB
     subgraph Claimed["MANUSCRIPT §3.1 — claimed"]
-        C1["Pulumi + Multipass project"]
+        C1["pulumi-provider-multipass<br/><i>exists — separate private repo</i>"]
         C2["1 Nomad server VM"]
         C3["N Nomad client VMs"]
         C4["≤30 min provision<br/>≤60 min to first pipeline"]
@@ -23,7 +28,7 @@ graph TB
         C1 --> C3
         C2 --> C4
     end
-    subgraph Actual["THIS REPOSITORY — actual"]
+    subgraph Actual["THIS REPOSITORY — what was migrated"]
         A1["setup.sh<br/><i>copier template, unrendered</i><br/>{{ project_name }} placeholders"]
         A2["ONE generic Ubuntu 22.04 VM<br/>data-science cloud-init<br/><i>no Nomad</i>"]
         A3["start_nomad.sh<br/><i>personal scratch script</i><br/>runs nomad agent -dev ON THE HOST"]
@@ -52,7 +57,13 @@ Three specific defects:
    configuration defaults to non-privileged.
 
 Since §3.1 calls this template *"the canonical reviewer artefact"*, closing this gap is a
-submission blocker, not a polish item. It is X0 in the experiment handover.
+submission blocker rather than a polish item, and it is X0 in the experiment handover. The fix is
+**migration plus vetting**, not new development: bring `pulumi-provider-multipass` and its topology
+declaration into this repository, since a reviewer following the Zenodo DOI must not need access
+to a private repository. The three defects listed above still apply to what is here now.
+
+The randomised `nf-sleep` workload for the preemption trials (X3) also targets this template —
+it is what makes the resilience claim reproducible on a laptop rather than only on a spot fleet.
 
 ---
 

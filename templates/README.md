@@ -11,9 +11,10 @@ placeholder in angle brackets — substitute before deploying.
 **This does not currently provision a Nomad cluster.** `setup.sh` is an unrendered copier
 template that launches one general-purpose VM; `start_nomad.sh` runs `nomad agent -dev` on the
 host; `local_nomadlab.hcl` hard-codes an absolute path and enables privileged Docker. The
-manuscript describes a Pulumi + Multipass 1-server + N-client cluster — that project does not
-exist in the source tree. See [`ARCHITECTURE.md`](ARCHITECTURE.md). Closing this is X0 in the
-experiment plan.
+manuscript describes a Pulumi + Multipass 1-server + N-client cluster; that project **does exist**
+(`pulumi-provider-multipass`) but lives in a separate private repository and was not migrated here.
+A reviewer following the Zenodo DOI must not need private access, so migrating it is X0 in the
+experiment plan. See [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 ```
 setup.sh                        provision the VMs
