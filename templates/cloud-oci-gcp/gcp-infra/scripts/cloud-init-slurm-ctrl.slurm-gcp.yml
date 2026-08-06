@@ -1,0 +1,391 @@
+#cloud-config
+# slurm-gcp image variant - Slurm binaries/munge/dirs are pre-baked.
+# We only add: NFS, mariadb, slurm.conf, munge key, slurm-web, Nomad, Nextflow.
+output: {all: '| tee -a /var/log/cloud-init-output.log'}
+hostname: ${ctrlHostname}
+
+packages:
+  # Pre-baked by slurm-gcp image: munge, slurmctld, slurmdbd, slurmrestd, slurmd,
+  #   sacct, squeue, sbatch, lmod, openmpi, cuda, lustre client.
+  # We only install what the image does NOT include:
+  - nfs-kernel-server
+  - mariadb-server
+  - jq
+  - rclone
+  - default-jre-headless      # Nextflow JVM head
+  - singularity-container      # HPC container runtime (confirm if pre-baked; safe to re-install)
+  - curl
+  - wget
+  - unzip
+
+users:
+  - name: ubuntu
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - ${publicKey}
+
+write_files:
+  # -- Slurm configuration ---------------------------------------------------
+  - path: /etc/slurm/slurm.conf
+    permissions: "0644"
+    owner: root:root
+    content: |
+      ClusterName=gcp-test
+      SlurmctldHost=${ctrlHostname}
+      AuthType=auth/munge
+      # JWT auth for slurmrestd (requires Slurm ≥ 24.05)
+      AuthAltTypes=auth/jwt
+      AuthAltParameters=jwt_key=/var/spool/slurm/jwt_hs256.key
+      SlurmUser=slurm
+      MailProg=/bin/true
+      ProctrackType=proctrack/cgroup
+      TaskPlugin=task/cgroup,task/affinity
+      AccountingStorageType=accounting_storage/slurmdbd
+      AccountingStorageHost=localhost
+      JobAcctGatherType=jobacct_gather/linux
+      SchedulerType=sched/backfill
+      SelectType=select/cons_tres
+${slurmNodeLines}
+      PartitionName=debug   Nodes=${slurmPartitionNodes} Default=YES MaxTime=00:30:00 State=UP
+      PartitionName=compute Nodes=${slurmPartitionNodes} MaxTime=04:00:00 State=UP
+      PartitionName=tight   Nodes=${slurmPartitionNodes} MaxCPUsPerNode=4 MaxTime=01:00:00 State=UP
+      StateSaveLocation=/var/spool/slurmctld
+      SlurmdSpoolDir=/var/spool/slurmd
+      SlurmctldLogFile=/var/log/slurm/slurmctld.log
+      SlurmdLogFile=/var/log/slurm/slurmd.log
+      SlurmctldPidFile=/run/slurmctld.pid
+      SlurmdPidFile=/run/slurmd.pid
+
+  - path: /etc/slurm/slurmdbd.conf
+    permissions: "0600"
+    owner: root:root
+    content: |
+      SlurmUser=slurm
+      AuthType=auth/munge
+      DbdHost=localhost
+      StorageType=accounting_storage/mysql
+      StorageHost=localhost
+      StorageUser=slurm
+      StoragePass=slurmpass
+      StorageLoc=slurm_acct_db
+      LogFile=/var/log/slurm/slurmdbd.log
+      PidFile=/var/run/slurmdbd/slurmdbd.pid
+
+      # Allow slurmrestd (which uses rest_auth/jwt) to open slurmdbd connections.
+      # Without this, clicking a job in slurm-web returns error 7000 (db conn fail).
+      AuthAltTypes=auth/jwt
+      AuthAltParameters=jwt_key=/var/spool/slurm/jwt_hs256.key
+
+  # -- slurmrestd ------------------------------------------------------------
+  - path: /etc/default/slurmrestd
+    permissions: "0644"
+    owner: root:root
+    content: |
+      SLURMRESTD_OPTIONS="-a rest_auth/jwt -u slurmrestd -g slurmrestd"
+
+  - path: /etc/systemd/system/slurmrestd.service.d/override.conf
+    permissions: "0644"
+    owner: root:root
+    content: |
+      [Service]
+      # Drop the unix-socket arg (unprivileged user can't bind it); bind TCP 6820 instead.
+      ExecStart=
+      ExecStart=/usr/local/sbin/slurmrestd $SLURMRESTD_OPTIONS 0.0.0.0:6820
+      EnvironmentFile=/etc/default/slurmrestd
+
+  # -- slurm-web -------------------------------------------------------------
+  - path: /etc/slurm-web/agent.ini
+    permissions: "0644"
+    owner: root:root
+    content: |
+      [service]
+      cluster=gcp-nomadlab
+
+      [slurmrestd]
+      uri=http://localhost:6820
+      auth=jwt
+      jwt_mode=auto
+      jwt_key=/var/lib/slurm-web/slurmrestd.key
+
+  - path: /etc/slurm-web/gateway.ini
+    permissions: "0644"
+    owner: root:root
+    content: |
+      [service]
+      interface=0.0.0.0
+      port=5011
+      # cors=yes is required: the browser JS fetches /api/* from this origin,
+      # and slurm-web-gateway rejects cross-origin requests without it.
+      cors=yes
+
+      [ui]
+      # Use the short Tailscale MagicDNS hostname — must match the URL the browser
+      # actually navigates to (no .ts.net suffix) so page origin == API_SERVER origin.
+      host=http://${tailscaleHostname}:5011
+
+      [agents]
+      url=http://localhost:5012
+
+      [authentication]
+      enabled=no
+
+  # -- Nomad -----------------------------------------------------------------
+  - path: /etc/nomad.d/nomad.hcl
+    permissions: "0644"
+    owner: root:root
+    content: |
+      datacenter = "gcp-nomadlab"
+      data_dir   = "/opt/nomad/data"
+      log_level  = "INFO"
+      bind_addr  = "0.0.0.0"
+
+      client {
+        enabled    = true
+        node_class = "slurm-login"
+        servers    = ["${nomad_server_hostname}:4647"]
+
+        options {
+          "driver.whitelist" = "slurm,raw_exec"
+        }
+
+        host_volume "shared" {
+          path      = "/shared"
+          read_only = false
+        }
+      }
+
+      acl {
+        enabled = true
+      }
+
+      plugin_dir = "/opt/nomad/plugins"
+
+      plugin "nomad-driver-slurm" {
+        config {
+          slurm_conf_path   = ""
+          poll_interval     = "10s"
+          script_dir        = "/shared/nomad-scripts"
+          default_partition = "debug"
+        }
+      }
+
+      plugin "raw_exec" {
+        config {
+          enabled = true
+        }
+      }
+
+  - path: /etc/systemd/system/nomad.service
+    permissions: "0644"
+    owner: root:root
+    content: |
+      [Unit]
+      Description=HashiCorp Nomad
+      Documentation=https://www.nomadproject.io/
+      Requires=network-online.target munge.service slurmdbd.service slurmctld.service
+      After=network-online.target tailscaled.service munge.service slurmdbd.service slurmctld.service
+
+      [Service]
+      User=root
+      Group=root
+      # slurm-readiness-check.sh waits up to 120 s — extend systemd timeout past that.
+      TimeoutStartSec=180
+      EnvironmentFile=-/etc/nomad.d/secrets/client-token.env
+      ExecStartPre=/bin/bash -c 'if [ -f /etc/nomad.d/secrets/client-token.txt ]; then echo "NOMAD_TOKEN=$(cat /etc/nomad.d/secrets/client-token.txt)" > /etc/nomad.d/secrets/client-token.env; fi'
+      ExecStartPre=/usr/local/bin/slurm-readiness-check.sh
+      ExecStart=/usr/local/bin/nomad agent -config=/etc/nomad.d
+      ExecReload=/bin/kill -HUP $MAINPID
+      KillMode=process
+      KillSignal=SIGINT
+      LimitNOFILE=65536
+      LimitNPROC=infinity
+      Restart=on-failure
+      RestartSec=2
+      TasksMax=infinity
+
+      [Install]
+      WantedBy=multi-user.target
+
+  - path: /usr/local/bin/slurm-readiness-check.sh
+    permissions: "0755"
+    owner: root:root
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+      deadline="$((SECONDS + 120))"
+      while (( SECONDS < deadline )); do
+        if systemctl is-active --quiet munge && \
+           systemctl is-active --quiet slurmdbd && \
+           systemctl is-active --quiet slurmctld && \
+           ss -ltn | grep -q ':6817' && \
+           scontrol ping >/dev/null 2>&1; then
+          exit 0
+        fi
+        sleep 3
+      done
+      echo "slurm readiness check timed out" >&2
+      systemctl status munge slurmdbd slurmctld --no-pager || true
+      journalctl -u slurmdbd -u slurmctld -n 80 --no-pager || true
+      exit 1
+
+runcmd:
+
+  # -- 0. Hostname pinning ---------------------------------------------------
+  # Pin ctrl to 127.0.0.1 and pre-pin all workers to their GCP internal IPs.
+  # This ensures Tailscale MagicDNS can never redirect slurmctld → slurmd
+  # connections to stale offline device IPs.
+  - |
+    grep -q "^127.0.0.1 ${ctrlHostname}$" /etc/hosts || \
+      echo "127.0.0.1 ${ctrlHostname}" >> /etc/hosts
+    ${workerHostsScript}
+
+  # -- 1. NFS shared disk ----------------------------------------------------
+  - |
+    mkdir -p /shared
+    if [ -b /dev/sdb ]; then
+      if ! blkid /dev/sdb >/dev/null 2>&1; then
+        mkfs.ext4 -F /dev/sdb
+      fi
+      mount /dev/sdb /shared || true
+      grep -q '^/dev/sdb /shared ' /etc/fstab || \
+        echo "/dev/sdb /shared ext4 defaults 0 2" >> /etc/fstab
+    fi
+    mkdir -p /shared/nomad-scripts /shared/nextflow-work /shared/test-data \
+             /shared/results /shared/singularity-cache
+    chmod 777 /shared/nomad-scripts /shared/nextflow-work /shared/test-data \
+              /shared/results /shared/singularity-cache
+
+  # -- 2. NFS export ---------------------------------------------------------
+  - |
+    grep -q '^/shared 10.0.2.0/24' /etc/exports || \
+      echo "/shared 10.0.2.0/24(rw,sync,no_subtree_check,no_root_squash)" >> /etc/exports
+    exportfs -ra
+    systemctl enable nfs-kernel-server
+    systemctl restart nfs-kernel-server
+
+  # -- 3. Nextflow + singularity cache prefetch ------------------------------
+  - |
+    if ! command -v nextflow >/dev/null 2>&1; then
+      cd /tmp && curl -fsSL https://get.nextflow.io | bash
+      mv nextflow /usr/local/bin/ && chmod +x /usr/local/bin/nextflow
+    fi
+    nextflow -v || true
+    mkdir -p /shared/singularity-cache && chmod 0777 /shared/singularity-cache
+    if [ ! -f /shared/singularity-cache/debian-stable-slim.sif ]; then
+      ( cd /shared/singularity-cache && \
+        singularity pull debian-stable-slim.sif docker://debian:stable-slim ) || \
+        echo "WARN: singularity pull failed; pipelines will lazy-fetch"
+    fi
+
+  # -- 4. Nomad binary + slurm driver ---------------------------------------
+  - |
+    wget -q https://releases.hashicorp.com/nomad/${nomad_version}/nomad_${nomad_version}_linux_amd64.zip
+    unzip -o nomad_${nomad_version}_linux_amd64.zip
+    mv nomad /usr/local/bin/ && chmod +x /usr/local/bin/nomad
+    rm -f nomad_${nomad_version}_linux_amd64.zip
+    mkdir -p /opt/nomad/plugins /etc/nomad.d /opt/nomad/data /etc/nomad.d/secrets
+    curl -fsSL ${slurmDriverArtifactUrl} -o /opt/nomad/plugins/nomad-driver-slurm
+    chmod +x /opt/nomad/plugins/nomad-driver-slurm
+
+  # -- 5. Tailscale ---------------------------------------------------------
+  - |
+    curl -fsSL https://tailscale.com/install.sh | sh
+    tailscale up --authkey="${tailscaleKey}" --hostname="${tailscaleHostname}" --accept-routes
+
+  # -- 6. Munge key ---------------------------------------------------------
+  - |
+    mkdir -p /etc/munge
+    echo "${munge_key_b64}" | base64 -d > /etc/munge/munge.key
+    chmod 400 /etc/munge/munge.key && chown munge:munge /etc/munge/munge.key
+    systemctl enable munge && systemctl restart munge
+    systemctl is-active --quiet munge || { journalctl -u munge -n 40 --no-pager; exit 1; }
+    munge -n | unmunge >/dev/null || { echo "munge round-trip failed" >&2; exit 1; }
+
+  # -- 7. MariaDB -----------------------------------------------------------
+  - |
+    systemctl enable mariadb && systemctl start mariadb
+    systemctl is-active --quiet mariadb || { journalctl -u mariadb -n 40 --no-pager; exit 1; }
+    mysql -e "CREATE DATABASE IF NOT EXISTS slurm_acct_db;"
+    mysql -e "CREATE USER IF NOT EXISTS 'slurm'@'localhost' IDENTIFIED BY 'slurmpass';"
+    mysql -e "GRANT ALL ON slurm_acct_db.* TO 'slurm'@'localhost'; FLUSH PRIVILEGES;"
+
+  # -- 8. slurmdbd ----------------------------------------------------------
+  - |
+    chown slurm:slurm /etc/slurm/slurmdbd.conf
+    mkdir -p /var/log/slurm /var/spool/slurmctld /var/spool/slurmd /var/run/slurmdbd
+    chown -R slurm:slurm /var/log/slurm /var/spool/slurmctld /var/spool/slurmd /var/run/slurmdbd
+    systemctl enable slurmdbd && systemctl restart slurmdbd
+    for i in $(seq 1 40); do
+      systemctl is-active --quiet slurmdbd && ss -ltn | grep -q ':6819' && break
+      sleep 3
+    done
+    systemctl is-active --quiet slurmdbd || { journalctl -u slurmdbd -n 80 --no-pager; exit 1; }
+
+  # -- 9. JWT key for slurmctld + slurmrestd --------------------------------
+  - |
+    mkdir -p /var/spool/slurm
+    dd if=/dev/urandom bs=32 count=1 of=/var/spool/slurm/jwt_hs256.key 2>/dev/null
+    chmod 600 /var/spool/slurm/jwt_hs256.key
+    chown slurm:slurm /var/spool/slurm/jwt_hs256.key
+
+  # -- 10. slurmctld --------------------------------------------------------
+  - |
+    chown slurm:slurm /etc/slurm/slurm.conf
+    cp /etc/slurm/slurm.conf /shared/slurm.conf
+    sacctmgr -i add cluster gcp-test || true
+    sacctmgr -i add account testaccount cluster=gcp-test description="Test account" || true
+    sacctmgr -i add user slurm account=testaccount cluster=gcp-test || true
+    systemctl enable slurmctld && systemctl restart slurmctld
+    for i in $(seq 1 40); do
+      systemctl is-active --quiet slurmctld && ss -ltn | grep -q ':6817' && break
+      sleep 3
+    done
+    systemctl is-active --quiet slurmctld || { journalctl -u slurmctld -u slurmdbd -n 120 --no-pager; exit 1; }
+    scontrol ping >/dev/null || { echo "scontrol ping failed" >&2; exit 1; }
+
+  # -- 11. slurmrestd -------------------------------------------------------
+  - |
+    id slurmrestd >/dev/null 2>&1 || useradd -r -s /sbin/nologin slurmrestd
+    systemctl daemon-reload
+    systemctl enable slurmrestd && systemctl restart slurmrestd
+    for i in $(seq 1 20); do
+      ss -ltn | grep -q ':6820' && break
+      sleep 3
+    done
+    ss -ltn | grep -q ':6820' || { echo "slurmrestd not listening on 6820" >&2; journalctl -u slurmrestd -n 40 --no-pager; exit 1; }
+
+  # -- 12. slurm-web --------------------------------------------------------
+  - |
+    curl -fsSL https://pkgs.rackslab.io/keyring.asc | \
+      gpg --dearmor -o /usr/share/keyrings/rackslab.gpg
+    echo "deb [arch=amd64 signed-by=/usr/share/keyrings/rackslab.gpg] https://pkgs.rackslab.io/deb ubuntu24.04 main slurmweb-6" > /etc/apt/sources.list.d/rackslab-slurm-web.list
+    apt-get update -qq
+    apt-get install -y slurm-web-agent slurm-web-gateway
+
+    # Copy slurmrestd JWT key for slurm-web agent
+    mkdir -p /var/lib/slurm-web /etc/slurm-web
+    cp /var/spool/slurm/jwt_hs256.key /var/lib/slurm-web/slurmrestd.key
+    chown slurm-web:slurm-web /var/lib/slurm-web/slurmrestd.key
+    chmod 640 /var/lib/slurm-web/slurmrestd.key
+
+    # Generate slurm-web's own session signing key
+    slurm-web gen-jwt-key
+
+    systemctl enable slurm-web-agent slurm-web-gateway
+    systemctl restart slurm-web-agent slurm-web-gateway
+
+  # -- 13. Nomad ------------------------------------------------------------
+  - |
+    systemctl daemon-reload
+    systemctl enable nomad
+    systemctl restart nomad
+
+  # -- 14. Smoke check -------------------------------------------------------
+  - |
+    sleep 30
+    munge -n | unmunge >/dev/null && echo "munge OK"
+    sinfo >/dev/null && echo "sinfo OK"
+    scontrol ping >/dev/null && echo "scontrol ping OK"
+    echo "Completed"
+
+final_message: "slurm-gcp controller ready (Slurm pre-baked, slurm-web enabled)"

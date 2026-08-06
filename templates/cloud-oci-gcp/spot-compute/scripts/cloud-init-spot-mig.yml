@@ -1,0 +1,338 @@
+#cloud-config
+# GCP SPOT Nomad compute client that joins an EXISTING prod Nomad cluster
+# (e.g. abc-seedling-prod, server = aither) as a pure client in the compute
+# node_pool. Ubuntu 24.04. Preemptible — on GCP spot reclamation the node
+# drops out and Nomad reschedules its allocations elsewhere (nf-nomad
+# re-runs the affected pipeline tasks). This is the reallocation test path.
+#
+# Template variables (injected by SpotComputeNode.ts / getScript):
+#   publicKey          — SSH authorised key
+#   nomad_version      — Nomad release (must match the prod cluster, e.g. 1.11.2)
+#   arch               — amd64 / arm64
+#   prodServerJoin     — prod Nomad server RPC addr, e.g. <NOMAD_NODE_TAILNET_IP>:4647 (aither)
+#   datacenter         — prod datacenter, e.g. seedling-prod
+#   nodePool           — Nomad node_pool, e.g. compute
+#   nodeClass          — Nomad node_class, e.g. gcp-spot
+#   localitySite       — meta node.locality.site, e.g. gcp-johannesburg
+#   nfWorkPath         — host_volume "nf-work" path (matches prod: /opt/abc-seedling/nf-work)
+#   scratchPath        — host_volume "scratch" path (matches prod: /opt/nomad/scratch)
+#   dataDiskDevice     — attached data disk device for worker scratch (/dev/disk/by-id/google-nfdata)
+#   tailscaleKey       — Tailscale auth key (ephemeral, reusable)
+#   tailscaleHostname  — Tailscale hostname == Nomad node name
+#   exec2ArtifactUrl / containerdArtifactUrl / podmanArtifactUrl / singularityArtifactUrl
+#                      — external driver binaries (non-fatal if missing)
+output: {all: '| tee -a /var/log/cloud-init-output.log'}
+package_upgrade: true
+packages:
+  - curl
+  - wget
+  - unzip
+  - jq
+  - nfs-common
+  - rclone
+  - podman
+  - uidmap
+  - qemu-system-x86
+  - qemu-utils
+  - singularity-container
+  - default-jre-headless
+
+users:
+  - name: ubuntu
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - ${publicKey}
+
+write_files:
+  # ── Nomad client config — joins the prod cluster as a compute node ────────
+  - path: /etc/nomad.d/nomad.hcl
+    permissions: "0644"
+    owner: root:root
+    content: |
+      datacenter = "${datacenter}"
+      data_dir   = "/opt/nomad/data"
+      log_level  = "INFO"
+      # No explicit name — each MIG instance has a unique GCP name; Nomad
+      # defaults the node name to the OS hostname (== the GCP instance name).
+      plugin_dir = "/opt/nomad/plugins"
+
+      # Ephemeral-node hygiene: a SPOT instance is reclaimed with ~30s notice
+      # (ACPI soft-off → systemd stops nomad.service). Deregister from the
+      # servers on shutdown so the node does NOT linger as `down` in
+      # `nomad node status` until node_gc_threshold (24h). systemd sends
+      # SIGINT (KillSignal=SIGINT) → leave_on_interrupt; SIGTERM is covered too.
+      # Allocations reschedule regardless (the reallocation path); this just
+      # keeps the node list clean. Pairs with the ephemeral Tailscale key that
+      # auto-removes the tailnet device when it goes offline.
+      leave_on_interrupt = true
+      leave_on_terminate = true
+
+      # Bind + advertise on the Tailscale interface (overlay to the prod server).
+      bind_addr = "{{ GetInterfaceIP \"tailscale0\" }}"
+      advertise {
+        http = "{{ GetInterfaceIP \"tailscale0\" }}"
+        rpc  = "{{ GetInterfaceIP \"tailscale0\" }}"
+        serf = "{{ GetInterfaceIP \"tailscale0\" }}"
+      }
+
+      # Pure client — the prod server (aither) is the sole Raft member.
+      server { enabled = false }
+
+      client {
+        enabled           = true
+        servers           = ["${prodServerJoin}"]
+        network_interface = "tailscale0"
+        node_pool         = "${nodePool}"
+        node_class        = "${nodeClass}"
+
+        meta {
+          "node.locality.site"          = "${localitySite}"
+          "node.locality.network"       = "tailscale"
+          "node.locality.datacenter"    = "${datacenter}"
+          "node.locality.provider"      = "gcp"
+          "node.lifecycle.preemptible"  = "true"
+          "node.hardware.cpus"          = "${nodeCpus}"
+          "node.hardware.mem_gb"        = "${nodeMemGb}"
+          "node.hardware.gpus"          = "0"
+          "node.hardware.infiniband"    = "false"
+          "node.os.name"                = "ubuntu"
+          "node.os.version"             = "24.04"
+          "node.software.s5cmd"         = "2.3.0"
+          "node.capability.docker"      = "true"
+          "node.capability.containerd"  = "true"
+          "node.capability.exec2"       = "true"
+          "node.capability.podman"      = "true"
+          "node.capability.singularity" = "true"
+          "node.compliance.popia"       = "false"
+          "node.compliance.gdpr"        = "false"
+          "node.compliance.kenya_dpa"   = "false"
+          "node.workload.groups"        = "open"
+        }
+
+        # Workdir volume — MUST match the prod nodes' name ("nf-work") so the
+        # nf-nomad-s5cmd staging tasks can place here.
+        host_volume "nf-work" {
+          path      = "${nfWorkPath}"
+          read_only = false
+        }
+        host_volume "scratch" {
+          path      = "${scratchPath}"
+          read_only = false
+        }
+      }
+
+      acl {
+        enabled = true
+      }
+
+      plugin "docker" {
+        config {
+          # Bumped well above Nomad defaults so chonky bioinformatics containers
+          # (e.g. MAGMA's 2.6 GiB / 13-layer magma-container-1) pull without
+          # restart-looping. GCP egress to ghcr.io is slower / rate-limited vs
+          # aither, so these are higher than the on-prem 15m/5m.
+          image_pull_timeout    = "30m"
+          pull_activity_timeout = "10m"
+          allow_privileged = true
+          volumes {
+            enabled = true
+          }
+        }
+      }
+
+      plugin "containerd-driver" {
+        config {
+          enabled            = true
+          containerd_runtime = "io.containerd.runc.v2"
+          stats_interval     = "5s"
+        }
+      }
+
+      plugin "nomad-driver-exec2" {
+        config {
+          unveil_defaults = true
+          unveil_paths    = []
+        }
+      }
+
+      plugin "nomad-driver-podman" {
+        config {
+          socket_path = "unix:///run/podman/podman.sock"
+          volumes {
+            enabled = true
+          }
+        }
+      }
+
+      plugin "nomad-driver-singularity" {
+        config {
+          enabled          = true
+          singularity_path = "/usr/bin/singularity"
+        }
+      }
+
+      telemetry {
+        prometheus_metrics         = true
+        publish_allocation_metrics = true
+        publish_node_metrics       = true
+        disable_hostname           = true
+        collection_interval        = "10s"
+      }
+
+  # ── Nomad systemd service ─────────────────────────────────────────────────
+  - path: /etc/systemd/system/nomad.service
+    permissions: "0644"
+    owner: root:root
+    content: |
+      [Unit]
+      Description=HashiCorp Nomad
+      Documentation=https://www.nomadproject.io/
+      Requires=network-online.target
+      After=network-online.target docker.service tailscaled.service
+
+      [Service]
+      User=root
+      Group=root
+      ExecStart=/usr/local/bin/nomad agent -config=/etc/nomad.d
+      ExecReload=/bin/kill -HUP $MAINPID
+      KillMode=process
+      KillSignal=SIGINT
+      LimitNOFILE=65536
+      LimitNPROC=infinity
+      Restart=on-failure
+      RestartSec=2
+      TasksMax=infinity
+
+      [Install]
+      WantedBy=multi-user.target
+
+runcmd:
+  # ── 1. Docker CE (+ containerd.io for containerd-driver) ──────────────────
+  - |
+    apt-get update -q
+    apt-get install -y ca-certificates curl
+    install -m 0755 -d /etc/apt/keyrings
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+    chmod a+r /etc/apt/keyrings/docker.asc
+    echo \
+      "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] \
+      https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$UBUNTU_CODENAME") stable" \
+      | tee /etc/apt/sources.list.d/docker.list > /dev/null
+    apt-get update -q
+    apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+  # ── 2. Nomad binary (version-matched to the prod cluster) ─────────────────
+  - |
+    wget -q https://releases.hashicorp.com/nomad/${nomad_version}/nomad_${nomad_version}_linux_${arch}.zip
+    unzip -q nomad_${nomad_version}_linux_${arch}.zip
+    mv nomad /usr/local/bin/
+    chmod +x /usr/local/bin/nomad
+    rm -f nomad_${nomad_version}_linux_${arch}.zip
+    mkdir -p /etc/nomad.d /opt/nomad/data /opt/nomad/plugins
+    chmod 755 /etc/nomad.d /opt/nomad/data /opt/nomad/plugins
+
+  # ── 3. External driver binaries (non-fatal) ───────────────────────────────
+  - |
+    download_plugin() {
+      local dest="$1" url="$2"
+      if curl -fsSL "$url" -o "$dest"; then
+        chmod +x "$dest"; echo "plugin $(basename $dest): OK"
+      else
+        echo "WARNING: plugin $(basename $dest) unavailable at $url — skipping"; rm -f "$dest"
+      fi
+    }
+    download_plugin /opt/nomad/plugins/nomad-driver-exec2       "${exec2ArtifactUrl}"
+    download_plugin /opt/nomad/plugins/containerd-driver        "${containerdArtifactUrl}"
+    download_plugin /opt/nomad/plugins/nomad-driver-podman      "${podmanArtifactUrl}"
+    download_plugin /opt/nomad/plugins/nomad-driver-singularity "${singularityArtifactUrl}"
+
+  # ── 4. Java symlink fix (exec/java driver chroot) ─────────────────────────
+  - |
+    JVM_BIN=$(readlink -f /usr/bin/java 2>/dev/null || true)
+    if [ -z "$JVM_BIN" ] || [ ! -x "$JVM_BIN" ]; then
+      JVM_BIN=$(find /usr/lib/jvm -name java -type f -executable 2>/dev/null | head -1)
+    fi
+    if [ -n "$JVM_BIN" ] && [ "$JVM_BIN" != "/usr/bin/java" ]; then
+      ln -sf "$JVM_BIN" /usr/bin/java; echo "java symlink -> $JVM_BIN"
+    fi
+
+  # ── 5. Podman socket ──────────────────────────────────────────────────────
+  - |
+    systemctl enable --now podman.socket || true
+
+  # ── 6. Data disk for worker scratch + host_volume bind mounts ─────────────
+  # The 50GB boot disk is too small for concurrent bioinformatics worker scratch.
+  # A dedicated data disk (deviceName "nfdata" → /dev/disk/by-id/google-nfdata)
+  # is formatted + mounted at /data; the prod-shaped host_volume paths
+  # (nf-work, scratch) are bind-mounted onto it so the Nomad client config and
+  # nf-nomad-s5cmd staging are unchanged. ephemeral_disk does NOT bound this —
+  # it's host disk, not alloc disk.
+  - |
+    DATA_DEV="${dataDiskDevice}"
+    for i in $(seq 1 30); do [ -b "$DATA_DEV" ] && break; sleep 2; done
+    if [ -b "$DATA_DEV" ]; then
+      blkid "$DATA_DEV" >/dev/null 2>&1 || mkfs.ext4 -F -L nfdata "$DATA_DEV"
+      mkdir -p /data
+      mountpoint -q /data || mount "$DATA_DEV" /data
+      grep -q " /data " /etc/fstab || echo "$DATA_DEV /data ext4 defaults,nofail 0 2" >> /etc/fstab
+    else
+      echo "WARNING: data disk $DATA_DEV not found — falling back to boot disk for /data"
+      mkdir -p /data
+    fi
+    mkdir -p /data/nf-work /data/scratch "${nfWorkPath}" "${scratchPath}"
+    mountpoint -q "${nfWorkPath}"  || mount --bind /data/nf-work "${nfWorkPath}"
+    mountpoint -q "${scratchPath}" || mount --bind /data/scratch "${scratchPath}"
+    grep -q " ${nfWorkPath} "  /etc/fstab || echo "/data/nf-work ${nfWorkPath} none bind,nofail 0 0" >> /etc/fstab
+    grep -q " ${scratchPath} " /etc/fstab || echo "/data/scratch ${scratchPath} none bind,nofail 0 0" >> /etc/fstab
+    chmod 0777 /data/nf-work /data/scratch "${nfWorkPath}" "${scratchPath}"
+
+  # ── 7. s5cmd (nf-nomad-s5cmd staging dependency) ──────────────────────────
+  # CRITICAL: nf-nomad-s5cmd runs its stage-in/out INSIDE the worker container
+  # and resolves `s5cmd` via the nf-work host_volume — host
+  # ${nfWorkPath}/bin/s5cmd is mounted into the container at /nxf-work/bin/s5cmd
+  # and added to PATH. If s5cmd is ONLY in /usr/local/bin (host PATH) the
+  # in-container wrapper fails with "s5cmd: command not found" → it can't pull
+  # .command.sh → every worker task exits 127. So s5cmd MUST also live at
+  # ${nfWorkPath}/bin/s5cmd (matches the on-prem nomadlab node layout). This
+  # step runs AFTER step 6 so ${nfWorkPath} is mounted/created.
+  - |
+    S5VER=2.3.0
+    wget -q "https://github.com/peak/s5cmd/releases/download/v${S5VER}/s5cmd_${S5VER}_Linux-64bit.tar.gz" -O /tmp/s5cmd.tgz \
+      && tar -xzf /tmp/s5cmd.tgz -C /usr/local/bin s5cmd && chmod +x /usr/local/bin/s5cmd \
+      && echo "s5cmd $(s5cmd version 2>/dev/null || true)" || echo "WARNING: s5cmd install failed"
+    # Mirror into the nf-work host_volume bin/ so it is visible inside worker
+    # containers at /nxf-work/bin/s5cmd (the path nf-nomad-s5cmd expects).
+    install -d -m 0755 "${nfWorkPath}/bin"
+    install -m 0755 /usr/local/bin/s5cmd "${nfWorkPath}/bin/s5cmd" \
+      && echo "s5cmd mirrored to ${nfWorkPath}/bin/s5cmd" || echo "WARNING: s5cmd mirror to nf-work/bin failed"
+
+  # ── 8. Tailscale — hostname derived from the GCP instance name (metadata) ─
+  # Each MIG instance gets a unique GCP name (e.g. abc-...-spot-8c16g-a1b2);
+  # use it as both the Tailscale hostname and (via OS hostname) the Nomad node.
+  - |
+    curl -fsSL https://tailscale.com/install.sh | sh
+    INSTANCE_NAME=$(curl -s -H "Metadata-Flavor: Google" \
+      "http://metadata.google.internal/computeMetadata/v1/instance/name" || echo "abc-spot-unknown")
+    hostnamectl set-hostname "$INSTANCE_NAME" 2>/dev/null || true
+    tailscale up \
+      --auth-key="${tailscaleKey}" \
+      --hostname="$INSTANCE_NAME" \
+      --accept-risk=lose-ssh \
+      --reset
+    echo "Waiting for Tailscale IP..."
+    for i in $(seq 1 30); do
+      TSIP=$(tailscale ip -4 2>/dev/null || true)
+      [ -n "$TSIP" ] && { echo "Tailscale IP: $TSIP"; break; }
+      echo "  ($i/30) waiting..."; sleep 3
+    done
+    [ -n "$TSIP" ] || { echo "ERROR: no Tailscale IP"; exit 1; }
+
+  # ── 9. Start Nomad ────────────────────────────────────────────────────────
+  - |
+    systemctl daemon-reload
+    systemctl restart docker
+    systemctl enable nomad.service
+    systemctl start nomad.service
+    echo "Nomad spot compute client started — joining ${prodServerJoin} (pool=${nodePool} dc=${datacenter})"
+
+final_message: "Spot compute client ready — joining prod Nomad as ${nodeClass}. First boot ~10 min."

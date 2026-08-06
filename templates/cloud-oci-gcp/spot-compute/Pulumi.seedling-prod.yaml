@@ -1,0 +1,46 @@
+config:
+  gcp:project: <YOUR_GCP_PROJECT_ID>
+  gcp:region: africa-south1
+  spot-compute:zone: africa-south1-a
+  # MIG clients join the prod Nomad server's RPC; the autoscaler uses its HTTP API.
+  spot-compute:prodServerJoin: "<NOMAD_SERVER_TAILNET_IP>:4647" # aither Tailscale RPC
+  spot-compute:aitherNomadAddr: "http://<NOMAD_SERVER_TAILNET_IP>:4646"
+  spot-compute:datacenter: seedling-prod
+  spot-compute:nodePool: compute
+  spot-compute:localitySite: gcp-johannesburg
+  spot-compute:nfWorkPath: /opt/abc-seedling/nf-work
+  spot-compute:scratchPath: /opt/nomad/scratch
+  spot-compute:nomadVersion: 1.11.2
+  spot-compute:autoscalerVersion: 0.4.6
+  # Heterogeneous autoscaled spot fleet. min=1 on the smallest keeps a warm
+  # node (so the autoscaler always has a utilization signal); rest min=0.
+  spot-compute:nodeGroups:
+    - machineType: e2-custom-8-16384
+      cpus: 8
+      memGb: 16
+      nodeClass: gcp-spot-8c16g
+      min: 1
+      max: 2
+      target: 70
+    - machineType: e2-custom-16-32768
+      cpus: 16
+      memGb: 32
+      nodeClass: gcp-spot-16c32g
+      min: 0
+      max: 2
+      target: 70
+    - machineType: e2-custom-32-65536
+      cpus: 32
+      memGb: 64
+      nodeClass: gcp-spot-32c64g
+      min: 0
+      max: 1
+      target: 70
+  # REQUIRED secrets — set before `pulumi up`:
+  #   pulumi config set --secret spot-compute:tailscaleKey tskey-auth-XXXX
+  #   pulumi config set --secret spot-compute:nomadToken   <aither Nomad ACL token>
+
+  spot-compute:nomadToken:
+    secure: AAABAChr2qz1/Y7WavZ+3Zfcx8cVzMWhqjXMDh5wAsizHQphxVA3zEQcEsxY/J0Q/fDpP204MbstGAYz2ZoxefhAxGk=
+  spot-compute:tailscaleKey:
+    secure: AAABAPf504nzy8Syg95xOYg5CXDWSi4DM5aA0qOa/9gb4L6z1W79G5xHcf7yNkwFabYjxBmRF5adEAJJh40Mg3wI68ncpuyLPQiswWl9cOc2MPj7ei9IjLkLJzl+

@@ -1,0 +1,261 @@
+#cloud-config
+# Nomad spot-pool instance — Ubuntu 24.04
+#
+# Differences from cloud-init-nomad-client.yml:
+#   1. Tailscale hostname is read from the GCP instance metadata server at
+#      boot (not injected as a static template variable), so every MIG
+#      instance gets a unique name derived from its GCP instance name.
+#   2. A nomad-drain.service is installed to gracefully drain this node
+#      within the 30-second preemption window before the VM is reclaimed.
+#
+# Template variables (same as nomad-client minus tailscaleHostname):
+#   publicKey, nomad_version, nomad_server_hostname, arch,
+#   tailscaleKey, aclEnabled, nodeClass, nomadPluginBlocks,
+#   exec2ArtifactUrl, containerdArtifactUrl, podmanArtifactUrl,
+#   singularityArtifactUrl
+#
+output: {all: '| tee -a /var/log/cloud-init-output.log'}
+package_upgrade: true
+packages:
+  - curl
+  - wget
+  - unzip
+  - jq
+  - nfs-common
+  - rclone
+  - podman
+  - uidmap
+  - qemu-system-x86
+  - qemu-utils
+  - singularity-container
+  - default-jre-headless
+
+users:
+  - name: ubuntu
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - ${publicKey}
+
+write_files:
+  # ── Nomad client config ──────────────────────────────────────────────────
+  - path: /etc/nomad.d/nomad.hcl
+    permissions: "0644"
+    owner: root:root
+    content: |
+      datacenter = "gcp-nomadlab"
+      data_dir   = "/opt/nomad/data"
+      bind_addr  = "0.0.0.0"
+
+      advertise {
+        http = "{{ GetAllInterfaces | include \"network\" \"100.64.0.0/10\" | attr \"address\" }}:4646"
+        rpc  = "{{ GetAllInterfaces | include \"network\" \"100.64.0.0/10\" | attr \"address\" }}:4647"
+        serf = "{{ GetAllInterfaces | include \"network\" \"100.64.0.0/10\" | attr \"address\" }}:4648"
+      }
+
+      client {
+        enabled    = true
+        node_class = "${nodeClass}"
+        servers    = ["${nomad_server_hostname}:4647"]
+
+        host_network "private" {
+          cidr      = "10.0.2.0/24"
+          interface = "ens4"
+        }
+        host_network "tailscale" {
+          cidr      = "100.64.0.0/10"
+          interface = "tailscale0"
+        }
+
+        host_volume "nextflow-work" {
+          path      = "/work/nextflow-work"
+          read_only = false
+        }
+        host_volume "singularity-cache" {
+          path      = "/work/singularity-cache"
+          read_only = false
+        }
+      }
+
+      acl {
+        enabled = true
+      }
+
+      plugin_dir = "/opt/nomad/plugins"
+
+${nomadPluginBlocks}
+
+  # ── Nomad systemd service ────────────────────────────────────────────────
+  - path: /etc/systemd/system/nomad.service
+    permissions: "0644"
+    owner: root:root
+    content: |
+      [Unit]
+      Description=HashiCorp Nomad
+      Documentation=https://www.nomadproject.io/
+      Requires=network-online.target
+      After=network-online.target docker.service tailscaled.service
+
+      [Service]
+      User=root
+      Group=root
+      ExecStart=/usr/local/bin/nomad agent -config=/etc/nomad.d
+      ExecReload=/bin/kill -HUP $MAINPID
+      KillMode=process
+      KillSignal=SIGINT
+      LimitNOFILE=65536
+      LimitNPROC=infinity
+      Restart=on-failure
+      RestartSec=2
+      TasksMax=infinity
+
+      [Install]
+      WantedBy=multi-user.target
+
+  # ── Node ACL token (for drain service → Nomad API) ──────────────────────
+  # The drain service needs a valid Nomad ACL token to call `nomad node drain`.
+  # This token has the abc-gcp-node-policy (node:write + namespace read/exec).
+  - path: /etc/nomad.d/node-token.env
+    permissions: "0600"
+    owner: root:root
+    content: |
+      NOMAD_TOKEN=${spotPoolNodeToken}
+
+  # ── Drain service: runs on preemption / shutdown ─────────────────────────
+  # GCP gives a 30-second ACPI shutdown signal before reclaiming a spot VM.
+  # This service drains the Nomad node within 25 s so running allocations can
+  # be rescheduled before the VM disappears. The 5 s margin covers systemd
+  # overhead and the drain command's own RPC latency.
+  #
+  # Ordering: Before=nomad.service ensures drain runs before Nomad stops.
+  # DefaultDependencies=no prevents the unit from pulling in shutdown.target
+  # dependencies that would cause ordering loops.
+  - path: /etc/systemd/system/nomad-drain.service
+    permissions: "0644"
+    owner: root:root
+    content: |
+      [Unit]
+      Description=Drain Nomad node before preemption or shutdown
+      DefaultDependencies=no
+      Before=nomad.service shutdown.target
+      After=network-online.target
+
+      [Service]
+      Type=oneshot
+      EnvironmentFile=/etc/nomad.d/node-token.env
+      # -deadline 25s: Nomad force-drains after 25 s regardless of alloc state.
+      # -yes: skip interactive confirmation prompt.
+      # Exit 0 even if drain times out (no node registered yet on fresh boot).
+      ExecStart=/bin/bash -c '/usr/local/bin/nomad node drain -self -enable -deadline 25s -yes 2>/dev/null || true'
+      TimeoutStartSec=28
+      RemainAfterExit=yes
+
+      [Install]
+      WantedBy=multi-user.target
+
+runcmd:
+
+  # ── 1. Docker ────────────────────────────────────────────────────────────
+  - |
+    apt-get update -q
+    apt-get install -y ca-certificates curl
+    install -m 0755 -d /etc/apt/keyrings
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+    chmod a+r /etc/apt/keyrings/docker.asc
+    echo \
+      "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] \
+      https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$UBUNTU_CODENAME") stable" \
+      | tee /etc/apt/sources.list.d/docker.list > /dev/null
+    apt-get update -q
+    apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+  # ── 2. Nomad binary ──────────────────────────────────────────────────────
+  - |
+    wget -q https://releases.hashicorp.com/nomad/${nomad_version}/nomad_${nomad_version}_linux_${arch}.zip
+    unzip -q nomad_${nomad_version}_linux_${arch}.zip
+    mv nomad /usr/local/bin/
+    chmod +x /usr/local/bin/nomad
+    rm -f nomad_${nomad_version}_linux_${arch}.zip
+    mkdir -p /etc/nomad.d /opt/nomad/data /opt/nomad/plugins /etc/nomad.d/secrets
+    chmod 755 /etc/nomad.d /opt/nomad/data /opt/nomad/plugins
+
+  # ── 3. External plugin binaries ──────────────────────────────────────────
+  - |
+    download_plugin() {
+      local dest="$1" url="$2"
+      if curl -fsSL "$url" -o "$dest"; then
+        chmod +x "$dest"
+        echo "plugin $(basename $dest): downloaded OK ($(du -sh $dest | cut -f1))"
+      else
+        echo "WARNING: plugin $(basename $dest) not available at $url — skipping"
+        rm -f "$dest"
+      fi
+    }
+    download_plugin /opt/nomad/plugins/nomad-driver-exec2       "${exec2ArtifactUrl}"
+    download_plugin /opt/nomad/plugins/containerd-driver         "${containerdArtifactUrl}"
+    download_plugin /opt/nomad/plugins/nomad-driver-podman      "${podmanArtifactUrl}"
+    download_plugin /opt/nomad/plugins/nomad-driver-singularity "${singularityArtifactUrl}"
+
+  # ── 4. Java symlink fix ──────────────────────────────────────────────────
+  - |
+    JVM_BIN=$(readlink -f /usr/bin/java 2>/dev/null || true)
+    if [ -z "$JVM_BIN" ] || [ ! -x "$JVM_BIN" ]; then
+      JVM_BIN=$(find /usr/lib/jvm -name java -type f -executable 2>/dev/null | head -1)
+    fi
+    if [ -n "$JVM_BIN" ] && [ "$JVM_BIN" != "/usr/bin/java" ]; then
+      ln -sf "$JVM_BIN" /usr/bin/java
+    fi
+
+  # ── 5. Podman socket ─────────────────────────────────────────────────────
+  - |
+    systemctl enable --now podman.socket
+
+  # ── 6. Host directories ──────────────────────────────────────────────────
+  - |
+    mkdir -p /work/nextflow-work /work/singularity-cache
+    chmod 0777 /work/nextflow-work /work/singularity-cache
+
+  # ── 7. Nextflow ──────────────────────────────────────────────────────────
+  - |
+    if ! command -v nextflow >/dev/null 2>&1; then
+      curl -fsSL https://get.nextflow.io | bash
+      mv nextflow /usr/local/bin/
+      chmod +x /usr/local/bin/nextflow
+    fi
+    nextflow -v || true
+
+  # ── 8. Tailscale — dynamic hostname from GCP metadata ───────────────────
+  # Each MIG instance gets a unique GCP name (e.g. abc-dev-spot-a1b2c3).
+  # We use that as the Tailscale hostname so every node is individually
+  # reachable via MagicDNS without hardcoding hostnames in the template.
+  - |
+    curl -fsSL https://tailscale.com/install.sh | sh
+    INSTANCE_NAME=$(curl -sf -H "Metadata-Flavor: Google" \
+      "http://metadata.google.internal/computeMetadata/v1/instance/name" || echo "abc-spot-unknown")
+    tailscale up \
+      --auth-key="${tailscaleKey}" \
+      --hostname="$INSTANCE_NAME" \
+      --force-reauth \
+      --accept-risk=lose-ssh \
+      --reset
+    echo "Waiting for Tailscale IP..."
+    for i in $(seq 1 30); do
+      TSIP=$(tailscale ip -4 2>/dev/null || true)
+      if [ -n "$TSIP" ]; then
+        echo "Tailscale IP: $TSIP (hostname: $INSTANCE_NAME)"
+        break
+      fi
+      echo "  ($i/30) waiting..."
+      sleep 3
+    done
+    [ -n "$TSIP" ] || { echo "ERROR: Tailscale IP not acquired"; exit 1; }
+
+  # ── 9. Start services + enable drain ────────────────────────────────────
+  - |
+    systemctl daemon-reload
+    systemctl restart docker
+    systemctl enable nomad-drain.service
+    systemctl enable nomad.service
+    systemctl start nomad.service
+    echo "Nomad spot client started (drain service enabled)"
+
+final_message: "Nomad spot-pool client ready — preemption drain enabled (25 s deadline)."

@@ -1,0 +1,106 @@
+#cloud-config
+# Always-on Nomad Autoscaler VM. Joins Tailscale to reach the prod Nomad
+# server (aither), then runs nomad-autoscaler with one gce-mig scaling policy
+# per spot MIG. GCP MIG credentials come from THIS VM's service account
+# (cloud-platform scope + roles/compute.instanceAdmin.v1) — no key files.
+#
+# Template variables:
+#   publicKey             — SSH authorised key
+#   autoscalerVersion     — nomad-autoscaler release
+#   tailscaleKey          — Tailscale auth key
+#   tailscaleHostname     — Tailscale hostname for this VM
+#   aitherNomadAddr       — prod Nomad HTTP addr (e.g. http://<NOMAD_NODE_TAILNET_IP>:4646)
+#   nomadToken            — Nomad ACL token (read + scaling) for the prod cluster
+#   policiesScript        — bash that writes /etc/nomad-autoscaler/policies/*.hcl
+output: {all: '| tee -a /var/log/cloud-init-output.log'}
+package_upgrade: true
+packages:
+  - curl
+  - wget
+  - unzip
+  - jq
+
+users:
+  - name: ubuntu
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - ${publicKey}
+
+write_files:
+  - path: /etc/nomad-autoscaler/config.hcl
+    permissions: "0644"
+    owner: root:root
+    content: |
+      nomad {
+        address = "${aitherNomadAddr}"
+        token   = "${nomadToken}"
+      }
+
+      apm "nomad_apm" {
+        driver = "nomad-apm"
+      }
+
+      # GCP Managed Instance Group target. Credentials from the instance
+      # metadata server (this VM's SA has roles/compute.instanceAdmin.v1).
+      target "gce-mig" {
+        driver = "gce-mig"
+      }
+
+      log_level = "INFO"
+
+  - path: /etc/systemd/system/nomad-autoscaler.service
+    permissions: "0644"
+    owner: root:root
+    content: |
+      [Unit]
+      Description=Nomad Autoscaler
+      Documentation=https://developer.hashicorp.com/nomad/tools/autoscaling
+      Requires=network-online.target tailscaled.service
+      After=network-online.target tailscaled.service
+
+      [Service]
+      User=root
+      Group=root
+      ExecStart=/usr/local/bin/nomad-autoscaler agent -config=/etc/nomad-autoscaler/config.hcl -policy-dir=/etc/nomad-autoscaler/policies
+      Restart=on-failure
+      RestartSec=5
+      LimitNOFILE=65536
+
+      [Install]
+      WantedBy=multi-user.target
+
+runcmd:
+  # ── 1. nomad-autoscaler binary ────────────────────────────────────────────
+  - |
+    wget -q https://releases.hashicorp.com/nomad-autoscaler/${autoscalerVersion}/nomad-autoscaler_${autoscalerVersion}_linux_amd64.zip
+    unzip -q nomad-autoscaler_${autoscalerVersion}_linux_amd64.zip
+    mv nomad-autoscaler /usr/local/bin/
+    chmod +x /usr/local/bin/nomad-autoscaler
+    rm -f nomad-autoscaler_${autoscalerVersion}_linux_amd64.zip
+    mkdir -p /etc/nomad-autoscaler/policies
+
+  # ── 2. Scaling policies (one per spot MIG) ────────────────────────────────
+  - |
+    ${policiesScript}
+
+  # ── 3. Tailscale (reach the prod Nomad server over the mesh) ──────────────
+  - |
+    curl -fsSL https://tailscale.com/install.sh | sh
+    tailscale up \
+      --auth-key="${tailscaleKey}" \
+      --hostname="${tailscaleHostname}" \
+      --accept-risk=lose-ssh \
+      --reset
+    for i in $(seq 1 30); do
+      tailscale ip -4 >/dev/null 2>&1 && break
+      echo "  waiting for tailscale ($i/30)..."; sleep 3
+    done
+
+  # ── 4. Start the autoscaler ───────────────────────────────────────────────
+  - |
+    systemctl daemon-reload
+    systemctl enable nomad-autoscaler.service
+    systemctl start nomad-autoscaler.service
+    echo "nomad-autoscaler started — scaling spot MIGs against ${aitherNomadAddr}"
+
+final_message: "Nomad Autoscaler ready."

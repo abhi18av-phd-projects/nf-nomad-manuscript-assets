@@ -1,0 +1,34 @@
+config:
+  gcp:project: <YOUR_GCP_PROJECT_ID>
+  gcp:region: africa-south1
+  gcp-typescript:tailscaleKey:
+    secure: AAABAFEF/C8LZdsTWP3QsQKKJAimMAcQd3/qOzpCGlq4RDuEe1UHMBe1hZQsRALLlbfYWv0D/7H/q8/o0BneY19STp0sfFC7DBidkXUwbf6IXvKrPPtkOMPMhdiO
+  gcp-typescript:enableOsLogin: "false"
+  # ── Nomad clients (standalone, not attached to a scheduler cluster) ─────────
+  # On-demand clients: fixed pool, node_class = "gcp-ondemand"
+  gcp-typescript:nomadClientCount: "1"
+  # Spot pool: GCP MIG managed by Nomad Autoscaler (min=0, max below)
+  gcp-typescript:spotPoolMaxSize: "3"
+  # ── Slurm cluster ───────────────────────────────────────────────────────────
+  gcp-typescript:slurmEnabled: "true"
+  # "ubuntu" = Slurm 23.11 from apt | "slurm-gcp" = SchedMD pre-baked image (Slurm 24.x+)
+  gcp-typescript:slurmImageMode: "slurm-gcp"
+  # Number of Slurm compute worker VMs (IPs: 10.0.2.41+)
+  gcp-typescript:slurmWorkerCount: "1"
+  # ── PBS cluster ─────────────────────────────────────────────────────────────
+  gcp-typescript:pbsEnabled: "true"
+  # "ubuntu" = build OpenPBS from source (~20 min) | "pbs-gcp" = pre-baked image (~8 min)
+  gcp-typescript:pbsImageMode: "ubuntu"
+  # Number of PBS execution worker VMs (IPs: 10.0.2.51+)
+  gcp-typescript:pbsWorkerCount: "1"
+  # ── Nomad federation ────────────────────────────────────────────────────────
+  # Join this stack's Nomad server into the existing sun-aither Raft via Tailscale.
+  gcp-typescript:joinSunAither: "true"
+  gcp-typescript:sunAitherServerJoin:
+    - "<NOMAD_NODE_TAILNET_IP>"
+    - "<NOMAD_NODE_TAILNET_IP>"
+    - "<NOMAD_NODE_TAILNET_IP>"
+  gcp-typescript:autoscalerNomadToken:
+    secure: AAABANXQlZTRl4vKfUYgXSNWoC2IUSDAg5RhH+VtjtJN4U8tt571MURL66Hshj2p4naYF8uU4yC6+5DBoklXM0FXYwM=
+  gcp-typescript:spotPoolNodeToken:
+    secure: AAABAKJQBQu15NsSWaPN80GBr3Io1ZD4eAgGWj5pmG1L72nFEHMp7jogDQN0SiwZ9qkWkNsVBEF8UGgKYp894lMbN4s=

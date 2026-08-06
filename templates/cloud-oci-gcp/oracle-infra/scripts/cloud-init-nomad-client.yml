@@ -1,0 +1,120 @@
+#cloud-config
+output: {all: '| tee -a /var/log/cloud-init-output.log'}
+package_upgrade: true
+packages:
+  - curl
+  - wget
+  - unzip
+  - jq # Utilidad para parsear JSON
+  - nfs-utils
+users:
+  - name: ubuntu
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - ${publicKey}
+
+runcmd:
+  - |
+    echo "AcceptEnv PULUMI_COMMAND_STDOUT" >> /etc/ssh/ssh_config.d/pulumi.conf
+    echo "AcceptEnv PULUMI_COMMAND_STDERR" >> /etc/ssh/ssh_config.d/pulumi.conf
+    sudo service ssh restart
+
+  # Install Docker
+  - |
+    sudo apt-get update
+    sudo apt-get install -y ca-certificates curl
+    sudo install -m 0755 -d /etc/apt/keyrings
+    sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+    sudo chmod a+r /etc/apt/keyrings/docker.asc
+    
+    echo \
+    "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+    $(. /etc/os-release && echo "$UBUNTU_CODENAME") stable" | \
+    sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+    sudo apt-get update
+    
+    sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+  # Download and install Nomad
+  - |
+    wget -q https://releases.hashicorp.com/nomad/${nomad_version}/nomad_${nomad_version}_linux_${arch}.zip
+    unzip nomad_${nomad_version}_linux_${arch}.zip
+    sudo mv nomad /usr/local/bin/
+    sudo chmod +x /usr/local/bin/nomad
+    sudo mkdir -p /etc/nomad.d /opt/nomad/data    
+    sudo chmod -R 755 /etc/nomad.d/
+    sudo chmod -R 755 /opt/nomad/data
+
+  # Start services (token will be set via cloud-init write_files)
+  - |
+    sudo systemctl daemon-reload
+    sudo systemctl restart docker
+    sudo systemctl enable nomad.service
+    sudo systemctl start nomad.service
+
+write_files:
+  # Nomad Client Configuration
+  - path: /etc/nomad.d/nomad.hcl
+    permissions: "0644"
+    owner: root:root
+    content: |
+      data_dir = "/opt/nomad/data"
+      bind_addr = "0.0.0.0"
+      
+      advertise {
+        http = "{{ GetPrivateInterfaces | include \"network\" \"10.0.0.0/8\" | attr \"address\" }}:4646"
+        rpc  = "{{ GetPrivateInterfaces | include \"network\" \"10.0.0.0/8\" | attr \"address\" }}:4647"
+        serf = "{{ GetPrivateInterfaces | include \"network\" \"10.0.0.0/8\" | attr \"address\" }}:4648"
+      }
+      
+      client {
+        enabled = true
+        servers = ["${nomad_server_ip}:4647"]
+        options {
+          "driver.docker.enabled" = "true"
+        }
+      }
+      
+      acl {
+        enabled = true
+      }
+      
+      plugin "docker" {
+        config {
+          allow_privileged = true
+          volumes {
+            enabled = true
+          }
+        }
+      }
+
+  # Systemd service for Nomad (with token sourcing)
+  - path: /etc/systemd/system/nomad.service
+    permissions: "0644"
+    owner: root:root
+    content: |
+      [Unit]
+      Description=HashiCorp Nomad
+      Documentation=https://www.nomadproject.io/
+      Requires=network-online.target
+      After=network-online.target docker.service
+      
+      [Service]
+      User=root
+      Group=root
+      EnvironmentFile=-/etc/nomad.d/secrets/client-token.env
+      ExecStartPre=/bin/bash -c 'if [ -f /etc/nomad.d/secrets/client-token.txt ]; then echo "NOMAD_TOKEN=$(cat /etc/nomad.d/secrets/client-token.txt)" > /etc/nomad.d/secrets/client-token.env; fi'
+      ExecStart=/usr/local/bin/nomad agent -config=/etc/nomad.d
+      ExecReload=/bin/kill -HUP $MAINPID
+      KillMode=process
+      KillSignal=SIGINT
+      LimitNOFILE=65536
+      LimitNPROC=infinity
+      Restart=on-failure
+      RestartSec=2
+      TasksMax=infinity
+      
+      [Install]
+      WantedBy=multi-user.target
+
+final_message: "Nomad client configured and started!"

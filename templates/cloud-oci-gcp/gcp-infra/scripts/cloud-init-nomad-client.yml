@@ -1,0 +1,264 @@
+#cloud-config
+# Nomad client — Ubuntu 24.04
+#
+# Template variables (injected by NomadClient.ts / getScript):
+#   publicKey               — SSH authorised key
+#   nomad_version           — Nomad release (e.g. 1.11.2)
+#   nomad_server_hostname   — Tailscale MagicDNS name of the Nomad server
+#   arch                    — CPU arch for Nomad download (amd64 / arm64)
+#   tailscaleKey            — Tailscale auth key
+#   tailscaleHostname       — Tailscale hostname for this node
+#   aclEnabled              — "true" | "false"
+#   nodeClass               — Nomad node_class attribute
+#   nomadPluginBlocks       — Pre-indented HCL plugin blocks (6-space indent)
+#   exec2ArtifactUrl        — GCS/HTTPS URL for nomad-driver-exec2 binary
+#   containerdArtifactUrl   — GCS/HTTPS URL for containerd-driver binary
+#   podmanArtifactUrl       — GCS/HTTPS URL for nomad-driver-podman binary
+#   singularityArtifactUrl  — GCS/HTTPS URL for nomad-driver-singularity binary
+#
+output: {all: '| tee -a /var/log/cloud-init-output.log'}
+package_upgrade: true
+packages:
+  - curl
+  - wget
+  - unzip
+  - jq
+  - nfs-common
+  - rclone
+  # Container runtimes
+  - podman
+  - uidmap           # rootless podman / user-namespace support
+  # QEMU — provides qemu-system-x86_64 which Nomad's qemu driver fingerprints
+  - qemu-system-x86
+  - qemu-utils
+  # Singularity runtime (exec/run/test sub-commands used by singularity driver)
+  - singularity-container
+  # JRE for: (a) Nomad java driver tasks, (b) Nextflow head-process JVM
+  - default-jre-headless
+
+users:
+  - name: ubuntu
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - ${publicKey}
+
+write_files:
+  # ── Nomad client config ──────────────────────────────────────────────────
+  - path: /etc/nomad.d/nomad.hcl
+    permissions: "0644"
+    owner: root:root
+    content: |
+      datacenter = "gcp-nomadlab"
+      data_dir   = "/opt/nomad/data"
+      bind_addr  = "0.0.0.0"
+
+      # Advertise on the Tailscale interface (100.64.0.0/10 CGNAT range).
+      # Evaluated at Nomad startup — Tailscale must be running first.
+      advertise {
+        http = "{{ GetAllInterfaces | include \"network\" \"100.64.0.0/10\" | attr \"address\" }}:4646"
+        rpc  = "{{ GetAllInterfaces | include \"network\" \"100.64.0.0/10\" | attr \"address\" }}:4647"
+        serf = "{{ GetAllInterfaces | include \"network\" \"100.64.0.0/10\" | attr \"address\" }}:4648"
+      }
+
+      client {
+        enabled    = true
+        node_class = "${nodeClass}"
+        servers    = ["${nomad_server_hostname}:4647"]
+
+        # Explicit host networks for per-interface port binding in jobs.
+        host_network "private" {
+          cidr      = "10.0.2.0/24"
+          interface = "ens4"
+        }
+        host_network "tailscale" {
+          cidr      = "100.64.0.0/10"
+          interface = "tailscale0"
+        }
+
+        # Host volumes — always present; the minio-data dir is only on
+        # clients with an attached data disk, but the dir always exists.
+        host_volume "minio-data" {
+          path      = "/data/minio"
+          read_only = false
+        }
+        host_volume "nextflow-work" {
+          path      = "/work/nextflow-work"
+          read_only = false
+        }
+        host_volume "singularity-cache" {
+          path      = "/work/singularity-cache"
+          read_only = false
+        }
+      }
+
+      acl {
+        enabled = true
+      }
+
+      plugin_dir = "/opt/nomad/plugins"
+
+${nomadPluginBlocks}
+
+  # ── Nomad systemd service ────────────────────────────────────────────────
+  - path: /etc/systemd/system/nomad.service
+    permissions: "0644"
+    owner: root:root
+    content: |
+      [Unit]
+      Description=HashiCorp Nomad
+      Documentation=https://www.nomadproject.io/
+      Requires=network-online.target
+      After=network-online.target docker.service tailscaled.service
+
+      [Service]
+      User=root
+      Group=root
+      EnvironmentFile=-/etc/nomad.d/secrets/client-token.env
+      ExecStartPre=/bin/bash -c 'if [ -f /etc/nomad.d/secrets/client-token.txt ]; then echo "NOMAD_TOKEN=$(cat /etc/nomad.d/secrets/client-token.txt)" > /etc/nomad.d/secrets/client-token.env; fi'
+      ExecStart=/usr/local/bin/nomad agent -config=/etc/nomad.d
+      ExecReload=/bin/kill -HUP $MAINPID
+      KillMode=process
+      KillSignal=SIGINT
+      LimitNOFILE=65536
+      LimitNPROC=infinity
+      Restart=on-failure
+      RestartSec=2
+      TasksMax=infinity
+
+      [Install]
+      WantedBy=multi-user.target
+
+runcmd:
+
+  # ── 1. Docker ────────────────────────────────────────────────────────────
+  # Full Docker CE install (also brings containerd.io used by containerd-driver)
+  - |
+    apt-get update -q
+    apt-get install -y ca-certificates curl
+    install -m 0755 -d /etc/apt/keyrings
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+    chmod a+r /etc/apt/keyrings/docker.asc
+    echo \
+      "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] \
+      https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$UBUNTU_CODENAME") stable" \
+      | tee /etc/apt/sources.list.d/docker.list > /dev/null
+    apt-get update -q
+    apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+  # ── 2. Nomad binary ──────────────────────────────────────────────────────
+  - |
+    wget -q https://releases.hashicorp.com/nomad/${nomad_version}/nomad_${nomad_version}_linux_${arch}.zip
+    unzip -q nomad_${nomad_version}_linux_${arch}.zip
+    mv nomad /usr/local/bin/
+    chmod +x /usr/local/bin/nomad
+    rm -f nomad_${nomad_version}_linux_${arch}.zip
+    mkdir -p /etc/nomad.d /opt/nomad/data /opt/nomad/plugins /etc/nomad.d/secrets
+    chmod 755 /etc/nomad.d /opt/nomad/data /opt/nomad/plugins
+
+  # ── 3. External plugin binaries ──────────────────────────────────────────
+  # Downloads are non-fatal: a missing binary is logged as a warning and
+  # Nomad starts without that driver (matches PBS/Slurm driver pattern).
+  - |
+    download_plugin() {
+      local dest="$1" url="$2"
+      if curl -fsSL "$url" -o "$dest"; then
+        chmod +x "$dest"
+        echo "plugin $(basename $dest): downloaded OK ($(du -sh $dest | cut -f1))"
+      else
+        echo "WARNING: plugin $(basename $dest) not available at $url — skipping"
+        rm -f "$dest"
+      fi
+    }
+    download_plugin /opt/nomad/plugins/nomad-driver-exec2       "${exec2ArtifactUrl}"
+    download_plugin /opt/nomad/plugins/containerd-driver         "${containerdArtifactUrl}"
+    download_plugin /opt/nomad/plugins/nomad-driver-podman      "${podmanArtifactUrl}"
+    download_plugin /opt/nomad/plugins/nomad-driver-singularity "${singularityArtifactUrl}"
+
+  # ── 4. Java symlink fix ──────────────────────────────────────────────────
+  # The default /usr/bin/java → /etc/alternatives/java chain breaks inside
+  # Nomad's exec-driver chroot (which bind-mounts /usr but not /etc/alternatives).
+  # Point /usr/bin/java directly at the JVM binary so both exec and java
+  # drivers can find it without alternatives.
+  - |
+    JVM_BIN=$(readlink -f /usr/bin/java 2>/dev/null || true)
+    if [ -z "$JVM_BIN" ] || [ ! -x "$JVM_BIN" ]; then
+      JVM_BIN=$(find /usr/lib/jvm -name java -type f -executable 2>/dev/null | head -1)
+    fi
+    if [ -n "$JVM_BIN" ] && [ "$JVM_BIN" != "/usr/bin/java" ]; then
+      ln -sf "$JVM_BIN" /usr/bin/java
+      echo "java symlink fixed: /usr/bin/java -> $JVM_BIN"
+    fi
+    # Stage a minimal test jar under /usr/share so java driver jobs can test
+    # without needing a host_volume (exec chroot bind-mounts /usr from host).
+    mkdir -p /usr/share/nomad-tests
+    cat > /tmp/Hello.java << 'JAVAEOF'
+    public class Hello {
+      public static void main(String[] args) { System.out.println("java driver: OK"); }
+    }
+    JAVAEOF
+    javac /tmp/Hello.java -d /tmp 2>/dev/null && \
+      jar --create --file=/usr/share/nomad-tests/Hello.jar --main-class=Hello -C /tmp Hello.class 2>/dev/null && \
+      echo "Hello.jar staged at /usr/share/nomad-tests/Hello.jar" || \
+      echo "WARNING: could not compile Hello.jar (javac not available)"
+
+  # ── 5. Podman socket ─────────────────────────────────────────────────────
+  # nomad-driver-podman requires the Podman API socket before Nomad starts.
+  - |
+    systemctl enable --now podman.socket
+    echo "podman socket enabled"
+
+  # ── 6. Host directories ──────────────────────────────────────────────────
+  - |
+    # Mount attached data disk at /data/minio if present (second disk = /dev/sdb).
+    if [ -b /dev/sdb ]; then
+      if ! blkid /dev/sdb >/dev/null 2>&1; then mkfs.ext4 -F /dev/sdb; fi
+      mkdir -p /data/minio
+      mount /dev/sdb /data/minio || true
+      grep -q '^/dev/sdb /data/minio' /etc/fstab || \
+        echo "/dev/sdb /data/minio ext4 defaults 0 2" >> /etc/fstab
+    fi
+    mkdir -p /data/minio
+    mkdir -p /work/nextflow-work
+    mkdir -p /work/singularity-cache
+    chmod 0777 /work/nextflow-work /work/singularity-cache
+
+  # ── 7. Nextflow ──────────────────────────────────────────────────────────
+  - |
+    if ! command -v nextflow >/dev/null 2>&1; then
+      curl -fsSL https://get.nextflow.io | bash
+      mv nextflow /usr/local/bin/
+      chmod +x /usr/local/bin/nextflow
+    fi
+    nextflow -v || true
+
+  # ── 8. Tailscale ─────────────────────────────────────────────────────────
+  # Must be up before Nomad starts — Nomad advertises on the Tailscale IP.
+  - |
+    curl -fsSL https://tailscale.com/install.sh | sh
+    tailscale up \
+      --auth-key="${tailscaleKey}" \
+      --hostname="${tailscaleHostname}" \
+      --force-reauth \
+      --accept-risk=lose-ssh \
+      --reset
+    echo "Waiting for Tailscale IP..."
+    for i in $(seq 1 30); do
+      TSIP=$(tailscale ip -4 2>/dev/null || true)
+      if [ -n "$TSIP" ]; then
+        echo "Tailscale IP: $TSIP"
+        break
+      fi
+      echo "  ($i/30) waiting..."
+      sleep 3
+    done
+    [ -n "$TSIP" ] || { echo "ERROR: Tailscale IP not acquired"; exit 1; }
+
+  # ── 9. Start services ────────────────────────────────────────────────────
+  - |
+    systemctl daemon-reload
+    systemctl restart docker
+    systemctl enable nomad.service
+    systemctl start nomad.service
+    echo "Nomad client started"
+
+final_message: "Nomad client ready — all drivers installed. First-boot may take 10-15 min."

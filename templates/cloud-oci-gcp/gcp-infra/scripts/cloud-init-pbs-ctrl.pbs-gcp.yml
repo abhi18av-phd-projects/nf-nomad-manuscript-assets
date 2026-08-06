@@ -1,0 +1,280 @@
+#cloud-config
+# OpenPBS controller — pbs-gcp pre-baked image variant.
+# OpenPBS binaries are already installed in the image (built by packer/pbs-gcp.pkr.hcl).
+# This cloud-init ONLY does per-stack configuration: NFS, queues, pbsweb, Nomad.
+# First boot time: ~8 min (vs ~22 min for the ubuntu/build-from-source variant).
+#
+# Template variables: same as cloud-init-pbs-ctrl.ubuntu.yml
+output: {all: '| tee -a /var/log/cloud-init-output.log'}
+hostname: ${ctrlHostname}
+
+packages:
+  - nfs-kernel-server
+  - nginx
+  - uwsgi
+  - uwsgi-plugin-python3
+  - python3-pip
+  - python3-venv
+  - curl
+  - wget
+  - unzip
+  - jq
+
+users:
+  - name: ubuntu
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - ${publicKey}
+
+write_files:
+  # -- Nomad client config (identical to ubuntu variant) --------------------
+  - path: /etc/nomad.d/nomad.hcl
+    permissions: "0644"
+    owner: root:root
+    content: |
+      datacenter = "gcp-nomadlab"
+      data_dir   = "/opt/nomad/data"
+      log_level  = "INFO"
+      bind_addr  = "0.0.0.0"
+
+      client {
+        enabled    = true
+        node_class = "pbs-login"
+        servers    = ["${nomad_server_hostname}:4647"]
+
+        options {
+          "driver.whitelist" = "pbs,raw_exec"
+        }
+
+        host_volume "shared" {
+          path      = "/shared"
+          read_only = false
+        }
+      }
+
+      acl {
+        enabled = true
+      }
+
+      plugin_dir = "/opt/nomad/plugins"
+
+      # Binary must be named "pbs" (Nomad matches plugin blocks by filename).
+      plugin "pbs" {
+        config {
+          pbs_server    = "${ctrlHostname}"
+          poll_interval = "10s"
+          script_dir    = "/shared/nomad-scripts"
+          default_queue = "debug"
+        }
+      }
+
+      plugin "raw_exec" {
+        config {
+          enabled = true
+        }
+      }
+
+  - path: /etc/systemd/system/nomad.service
+    permissions: "0644"
+    owner: root:root
+    content: |
+      [Unit]
+      Description=HashiCorp Nomad
+      Documentation=https://www.nomadproject.io/
+      Requires=network-online.target
+      After=network-online.target tailscaled.service
+
+      [Service]
+      User=root
+      Group=root
+      TimeoutStartSec=180
+      ExecStartPre=/usr/local/bin/pbs-readiness-check.sh
+      ExecStart=/usr/local/bin/nomad agent -config=/etc/nomad.d
+      ExecReload=/bin/kill -HUP $MAINPID
+      KillMode=process
+      KillSignal=SIGINT
+      LimitNOFILE=65536
+      LimitNPROC=infinity
+      Restart=on-failure
+      RestartSec=2
+      TasksMax=infinity
+
+      [Install]
+      WantedBy=multi-user.target
+
+  - path: /usr/local/bin/pbs-readiness-check.sh
+    permissions: "0755"
+    owner: root:root
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+      deadline="$((SECONDS + 120))"
+      while (( SECONDS < deadline )); do
+        if qstat -B >/dev/null 2>&1; then
+          echo "PBS server is ready"
+          exit 0
+        fi
+        sleep 3
+      done
+      echo "PBS readiness check timed out" >&2
+      journalctl -u pbs -n 60 --no-pager || true
+      exit 1
+
+  - path: /etc/nginx/sites-available/pbsweb
+    permissions: "0644"
+    owner: root:root
+    content: |
+      server {
+          listen 5013;
+          server_name _;
+          location / {
+              include uwsgi_params;
+              uwsgi_pass unix:/run/pbsweb.sock;
+          }
+      }
+
+  - path: /etc/uwsgi/apps-available/pbsweb.ini
+    permissions: "0644"
+    owner: root:root
+    content: |
+      [uwsgi]
+      module = pbsweb.app:app
+      master = true
+      processes = 2
+      socket = /run/pbsweb.sock
+      chmod-socket = 660
+      vacuum = true
+      plugin = python3
+      virtualenv = /opt/pbsweb-venv
+      env = PBS_SERVER=localhost
+
+  - path: /etc/systemd/system/pbsweb.service
+    permissions: "0644"
+    owner: root:root
+    content: |
+      [Unit]
+      Description=pbsweb dashboard
+      After=network.target pbs.service
+      [Service]
+      Type=forking
+      ExecStart=/usr/bin/uwsgi --ini /etc/uwsgi/apps-available/pbsweb.ini --daemonize /var/log/pbsweb/uwsgi.log
+      ExecStop=/usr/bin/uwsgi --stop /tmp/pbsweb-master.pid
+      PIDFile=/tmp/pbsweb-master.pid
+      Restart=on-failure
+      [Install]
+      WantedBy=multi-user.target
+
+runcmd:
+
+  # -- 0. Hostname pinning ---------------------------------------------------
+  # Pin ctrlHostname to its REAL internal IP (not 127.0.0.1) — PBS server
+  # needs a non-loopback address. Pre-pin all workers too.
+  - |
+    grep -q "^${ctrlIp} ${ctrlHostname}$" /etc/hosts || \
+      printf '%s %s\n' "${ctrlIp}" "${ctrlHostname}" >> /etc/hosts
+    ${workerHostsScript}
+
+  # -- 1. NFS shared disk ----------------------------------------------------
+  - |
+    mkdir -p /shared
+    if [ -b /dev/sdb ]; then
+      if ! blkid /dev/sdb >/dev/null 2>&1; then mkfs.ext4 -F /dev/sdb; fi
+      mount /dev/sdb /shared || true
+      grep -q '^/dev/sdb /shared ' /etc/fstab || \
+        echo "/dev/sdb /shared ext4 defaults 0 2" >> /etc/fstab
+    fi
+    mkdir -p /shared/nomad-scripts /shared/results /shared/singularity-cache
+    chmod 777 /shared/nomad-scripts /shared/results /shared/singularity-cache
+
+  # -- 2. NFS export ---------------------------------------------------------
+  - |
+    grep -q '^/shared 10.0.2.0/24' /etc/exports || \
+      echo "/shared 10.0.2.0/24(rw,sync,no_subtree_check,no_root_squash)" >> /etc/exports
+    exportfs -ra
+    systemctl enable nfs-kernel-server && systemctl restart nfs-kernel-server
+
+  # -- 3. Tailscale ----------------------------------------------------------
+  - |
+    curl -fsSL https://tailscale.com/install.sh | sh
+    tailscale up --authkey="${tailscaleKey}" --hostname="${tailscaleHostname}" --accept-routes
+
+  # -- 4. Configure PBS server (binaries already in image) -------------------
+  - |
+    sed -i \
+      -e 's/PBS_START_SERVER=0/PBS_START_SERVER=1/' \
+      -e 's/PBS_START_MOM=0/PBS_START_MOM=1/' \
+      -e 's/PBS_START_SCHED=0/PBS_START_SCHED=1/' \
+      -e 's/PBS_START_COMM=0/PBS_START_COMM=1/' \
+      /etc/pbs.conf
+    sed -i "s/PBS_SERVER=.*/PBS_SERVER=${ctrlHostname}/" /etc/pbs.conf
+    echo "${ctrlHostname}" > /var/spool/pbs/server_name
+
+  # -- 5. Start PBS ----------------------------------------------------------
+  - |
+    systemctl enable pbs && systemctl start pbs
+    for i in $(seq 1 30); do
+      qstat -B >/dev/null 2>&1 && break; sleep 5
+    done
+    qstat -B || { journalctl -u pbs -n 80 --no-pager; exit 1; }
+
+  # -- 6. Create queues ------------------------------------------------------
+  - |
+    qmgr -c "create queue debug"
+    qmgr -c "set queue debug queue_type=execution,enabled=True,started=True"
+    qmgr -c "set queue debug resources_max.ncpus=2,resources_max.walltime=00:30:00"
+
+    qmgr -c "create queue compute"
+    qmgr -c "set queue compute queue_type=execution,enabled=True,started=True"
+    qmgr -c "set queue compute resources_max.walltime=04:00:00"
+
+    qmgr -c "create queue long"
+    qmgr -c "set queue long queue_type=execution,enabled=True,started=True"
+    qmgr -c "set queue long resources_max.walltime=12:00:00"
+
+    qmgr -c "set server default_queue=debug"
+    qmgr -c "set server job_history_enable=True"
+    qmgr -c "set server job_history_duration=720:00:00"
+
+    qmgr -c "create node ${ctrlHostname}"
+    qmgr -c "set node ${ctrlHostname} queue=debug"
+    ${qmgrNodeLines}
+
+  # -- 7. pbsweb -------------------------------------------------------------
+  - |
+    python3 -m venv /opt/pbsweb-venv
+    /opt/pbsweb-venv/bin/pip install --quiet pbsweb
+    mkdir -p /var/log/pbsweb /run
+    ln -sf /etc/nginx/sites-available/pbsweb /etc/nginx/sites-enabled/pbsweb
+    rm -f /etc/nginx/sites-enabled/default
+    nginx -t && systemctl enable nginx && systemctl restart nginx
+    mkdir -p /etc/uwsgi/apps-enabled
+    ln -sf /etc/uwsgi/apps-available/pbsweb.ini /etc/uwsgi/apps-enabled/pbsweb.ini
+    systemctl daemon-reload
+    systemctl enable pbsweb && systemctl start pbsweb
+
+  # -- 8. Nomad + nomad-driver-pbs -------------------------------------------
+  - |
+    wget -q https://releases.hashicorp.com/nomad/${nomad_version}/nomad_${nomad_version}_linux_amd64.zip
+    unzip -o nomad_${nomad_version}_linux_amd64.zip
+    mv nomad /usr/local/bin/ && chmod +x /usr/local/bin/nomad
+    rm -f nomad_${nomad_version}_linux_amd64.zip
+    mkdir -p /opt/nomad/plugins /etc/nomad.d /opt/nomad/data /etc/nomad.d/secrets
+    # Download the PBS driver. Binary MUST be named "pbs" (Nomad matches by filename).
+    if curl -fsSL "${pbsDriverArtifactUrl}" -o /opt/nomad/plugins/pbs 2>/dev/null; then
+      chmod +x /opt/nomad/plugins/pbs
+      echo "pbs driver downloaded OK"
+    else
+      echo "WARNING: pbs driver not yet available at ${pbsDriverArtifactUrl} — Nomad will start without PBS driver"
+      rm -f /opt/nomad/plugins/pbs
+    fi
+    systemctl daemon-reload
+    systemctl enable nomad && systemctl restart nomad
+
+  # -- 9. Smoke checks -------------------------------------------------------
+  - |
+    sleep 30
+    qstat -B && echo "pbs_server OK"
+    qstat -Q && echo "queues OK"
+    echo "Completed"
+
+final_message: "OpenPBS controller ready (pbs-gcp image). pbsweb on :5013, Nomad client node_class=pbs-login."

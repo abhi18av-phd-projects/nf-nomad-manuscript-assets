@@ -1,0 +1,136 @@
+#cloud-config
+output: {all: '| tee -a /var/log/cloud-init-output.log'}
+package_upgrade: true
+hostname: ${nodeName}
+packages:
+  - munge
+  - libmunge-dev
+  - slurmd
+  - slurm-client
+  - nfs-common
+  - curl
+  # Singularity runtime so slurm jobs (sbatch'd via abc-hpc-bridge or
+  # directly via Nextflow's slurm executor) can run `singularity exec`.
+  # Image cache is shared with the controller via NFS at
+  # /shared/singularity-cache.
+  - singularity-container
+
+users:
+  - name: ubuntu
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - ${publicKey}
+
+write_files:
+  - path: /etc/systemd/system/slurmd.service.d/override.conf
+    permissions: "0644"
+    owner: root:root
+    content: |
+      [Unit]
+      After=network-online.target remote-fs.target
+      Requires=remote-fs.target
+
+      [Service]
+      # Re-establish the slurm.conf symlink on every start so a stale or
+      # missing /etc/slurm/slurm.conf doesn't permanently break slurmd.
+      # The shared config is owned by the slurm controller via NFS.
+      ExecStartPre=/usr/local/sbin/slurm-worker-link-conf.sh
+
+  - path: /usr/local/sbin/slurm-worker-link-conf.sh
+    permissions: "0755"
+    owner: root:root
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+      mkdir -p /etc/slurm
+      # Wait up to ~60s for NFS to be mounted and the controller-published config to be visible.
+      for i in $(seq 1 30); do
+        if [ -f /shared/slurm.conf ]; then
+          break
+        fi
+        sleep 2
+      done
+      if [ -f /shared/slurm.conf ]; then
+        ln -sfn /shared/slurm.conf /etc/slurm/slurm.conf
+      else
+        echo "slurm-worker-link-conf: /shared/slurm.conf not found; leaving /etc/slurm/slurm.conf untouched" >&2
+        # If a previous fallback config exists, slurmd will still start with it.
+        # If not, slurmd will fail and systemd will retry per its Restart= policy.
+      fi
+
+runcmd:
+
+  - |
+    mkdir -p /shared
+    if ! grep -q "^${ctrlIp}:/shared /shared nfs" /etc/fstab; then
+      echo "${ctrlIp}:/shared /shared nfs defaults,_netdev 0 0" >> /etc/fstab
+    fi
+    mount -a || true
+
+  - |
+    mkdir -p /etc/munge
+    echo "${munge_key_b64}" | base64 -d > /etc/munge/munge.key
+    chmod 400 /etc/munge/munge.key
+    chown munge:munge /etc/munge/munge.key
+    systemctl enable munge
+    systemctl restart munge
+    if ! systemctl is-active --quiet munge; then
+      echo "munge failed to start on worker" >&2
+      systemctl status munge --no-pager || true
+      journalctl -u munge -n 120 --no-pager || true
+      exit 1
+    fi
+    if ! (munge -n | unmunge >/dev/null 2>&1); then
+      echo "munge validation failed on worker" >&2
+      exit 1
+    fi
+
+  - |
+    # First-boot symlink. The same script also runs as ExecStartPre on every
+    # slurmd start so the link is repaired if /etc gets reset.
+    /usr/local/sbin/slurm-worker-link-conf.sh
+    if [ ! -e /etc/slurm/slurm.conf ]; then
+      echo "shared slurm.conf still not available after first-boot wait; writing local fallback" >&2
+      cat > /etc/slurm/slurm.conf <<EOF
+ClusterName=gcp-test
+SlurmctldHost=abc-dev-slurm-ctrl
+AuthType=auth/munge
+SlurmUser=slurm
+MailProg=/bin/true
+ProctrackType=proctrack/cgroup
+TaskPlugin=task/cgroup,task/affinity
+AccountingStorageType=accounting_storage/slurmdbd
+AccountingStorageHost=localhost
+JobAcctGatherType=jobacct_gather/linux
+SchedulerType=sched/backfill
+SelectType=select/cons_tres
+NodeName=${nodeName} NodeHostname=${nodeName} NodeAddr=$(hostname -I | awk '{print $1}') CPUs=8 RealMemory=7800 State=UNKNOWN
+PartitionName=debug Nodes=${nodeName} Default=YES MaxTime=00:30:00 State=UP
+PartitionName=compute Nodes=${nodeName} MaxTime=04:00:00 State=UP
+PartitionName=tight Nodes=${nodeName} MaxCPUsPerNode=1 MaxTime=01:00:00 State=UP
+StateSaveLocation=/var/spool/slurmctld
+SlurmdSpoolDir=/var/spool/slurmd
+SlurmctldLogFile=/var/log/slurm/slurmctld.log
+SlurmdLogFile=/var/log/slurm/slurmd.log
+SlurmctldPidFile=/run/slurmctld.pid
+SlurmdPidFile=/run/slurmd.pid
+EOF
+    fi
+
+  - |
+    mkdir -p /var/spool/slurmd /var/log/slurm
+    chown slurm:slurm /var/spool/slurmd /var/log/slurm
+    systemctl daemon-reload
+    systemctl enable slurmd
+    systemctl restart slurmd
+    if ! systemctl is-active --quiet slurmd; then
+      echo "slurmd failed to start" >&2
+      systemctl status slurmd --no-pager || true
+      journalctl -u slurmd -n 120 --no-pager || true
+      exit 1
+    fi
+
+  - |
+    echo "Completed"
+
+final_message: "Slurm worker configured!"

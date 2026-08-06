@@ -1,0 +1,92 @@
+#cloud-config
+# slurm-gcp image variant - Slurm/munge pre-baked.
+# Worker only needs: munge key, NFS mount, slurmd config symlink.
+# Workers do NOT join Tailscale — they communicate with the ctrl via GCP internal IP only.
+output: {all: '| tee -a /var/log/cloud-init-output.log'}
+hostname: ${nodeName}
+
+packages:
+  # Pre-baked: munge, slurmd, singularity/cuda/lmod (depending on image variant)
+  # Additionally needed:
+  - nfs-common
+  - singularity-container   # explicit install; safe to re-run if already present
+
+users:
+  - name: ubuntu
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - ${publicKey}
+
+write_files:
+  # -- slurmd waits for NFS + re-establishes the slurm.conf symlink on every start
+  - path: /etc/systemd/system/slurmd.service.d/override.conf
+    permissions: "0644"
+    owner: root:root
+    content: |
+      [Unit]
+      After=network-online.target remote-fs.target
+      Requires=remote-fs.target
+
+      [Service]
+      # Re-establish /etc/slurm/slurm.conf -> /shared/slurm.conf on every start
+      # so a stale symlink never permanently breaks slurmd.
+      ExecStartPre=/usr/local/sbin/slurm-worker-link-conf.sh
+
+  - path: /usr/local/sbin/slurm-worker-link-conf.sh
+    permissions: "0755"
+    owner: root:root
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+      mkdir -p /etc/slurm
+      # Wait up to ~60 s for NFS to be mounted and controller-published config to appear.
+      for i in $(seq 1 30); do
+        [ -f /shared/slurm.conf ] && break
+        sleep 2
+      done
+      if [ -f /shared/slurm.conf ]; then
+        ln -sfn /shared/slurm.conf /etc/slurm/slurm.conf
+      else
+        echo "slurm-worker-link-conf: /shared/slurm.conf not found after wait" >&2
+      fi
+
+runcmd:
+
+  # -- 0. Hostname pinning --------------------------------------------------
+  # Pin ctrl and self to their internal IPs BEFORE Tailscale joins, so
+  # Tailscale MagicDNS can never resolve them to stale/offline device IPs.
+  # This prevents "scontrol ping" failures and slurmd startup races.
+  - |
+    grep -q "^${ctrlIp} ${ctrlHostname}$" /etc/hosts || \
+      printf '%s %s\n' "${ctrlIp}" "${ctrlHostname}" >> /etc/hosts
+    grep -q "^127.0.0.1 ${nodeName}$" /etc/hosts || \
+      printf '127.0.0.1 %s\n' "${nodeName}" >> /etc/hosts
+
+  # -- 1. NFS mount ---------------------------------------------------------
+  - |
+    mkdir -p /shared
+    grep -q "^${ctrlIp}:/shared /shared nfs" /etc/fstab || \
+      echo "${ctrlIp}:/shared /shared nfs defaults,_netdev 0 0" >> /etc/fstab
+    mount -a || true
+
+  # -- 3. Munge key ---------------------------------------------------------
+  - |
+    mkdir -p /etc/munge
+    echo "${munge_key_b64}" | base64 -d > /etc/munge/munge.key
+    chmod 400 /etc/munge/munge.key && chown munge:munge /etc/munge/munge.key
+    systemctl enable munge && systemctl restart munge
+    systemctl is-active --quiet munge || { journalctl -u munge -n 40 --no-pager; exit 1; }
+    munge -n | unmunge >/dev/null || { echo "munge round-trip failed on worker" >&2; exit 1; }
+
+  # -- 4. slurm.conf symlink + slurmd ---------------------------------------
+  - |
+    /usr/local/sbin/slurm-worker-link-conf.sh
+    mkdir -p /var/spool/slurmd /var/log/slurm
+    chown slurm:slurm /var/spool/slurmd /var/log/slurm
+    systemctl daemon-reload
+    systemctl enable slurmd && systemctl restart slurmd
+    systemctl is-active --quiet slurmd || { journalctl -u slurmd -n 80 --no-pager; exit 1; }
+
+  - echo "Completed"
+
+final_message: "slurm-gcp worker ready"

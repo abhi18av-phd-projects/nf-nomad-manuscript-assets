@@ -1,0 +1,525 @@
+#cloud-config
+output: {all: '| tee -a /var/log/cloud-init-output.log'}
+package_upgrade: true
+packages:
+  - curl
+  - wget
+  - unzip
+  - jq # Utilidad para parsear JSON
+  - nfs-common
+  - rclone
+users:
+  - name: ubuntu
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - ${publicKey}
+
+runcmd:
+  - |
+    echo "AcceptEnv PULUMI_COMMAND_STDOUT" >> /etc/ssh/ssh_config.d/pulumi.conf
+    echo "AcceptEnv PULUMI_COMMAND_STDERR" >> /etc/ssh/ssh_config.d/pulumi.conf
+    sudo service ssh restart
+
+  # Install Docker
+  - |
+    sudo apt-get update
+    sudo apt-get install -y ca-certificates curl
+    sudo install -m 0755 -d /etc/apt/keyrings
+    sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+    sudo chmod a+r /etc/apt/keyrings/docker.asc
+    
+    echo \
+    "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+    $(. /etc/os-release && echo "$UBUNTU_CODENAME") stable" | \
+    sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+    sudo apt-get update
+    
+    sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+  # Download and install Consul
+  - |
+    wget -q https://releases.hashicorp.com/consul/${consul_version}/consul_${consul_version}_linux_${arch}.zip
+    unzip consul_${consul_version}_linux_${arch}.zip
+    sudo mv consul /usr/local/bin/
+    sudo chmod +x /usr/local/bin/consul
+    sudo mkdir -p /etc/consul.d /opt/consul/data
+
+  # Download and install Nomad
+  - |
+    wget -q https://releases.hashicorp.com/nomad/${nomad_version}/nomad_${nomad_version}_linux_${arch}.zip
+    unzip nomad_${nomad_version}_linux_${arch}.zip
+    sudo mv nomad /usr/local/bin/
+    sudo chmod +x /usr/local/bin/nomad
+    sudo mkdir -p /etc/nomad.d /opt/nomad/data    
+    sudo chmod -R 755 /etc/nomad.d/
+    sudo chmod -R 755 /opt/nomad/data
+
+  # Configure firewall
+  - |
+    sudo iptables -I INPUT -p tcp --dport 4646 -j ACCEPT
+    sudo iptables -I INPUT -p tcp --dport 4647 -j ACCEPT
+    sudo iptables -I INPUT -p tcp --dport 4648 -j ACCEPT
+    sudo iptables -I INPUT -p udp --dport 4648 -j ACCEPT
+    # web 
+    sudo iptables -I INPUT -p tcp --dport 8080 -j ACCEPT
+
+  # Create secrets directory
+  - |
+    sudo mkdir -p /etc/nomad.d/secrets
+    sudo chmod 700 /etc/nomad.d/secrets
+
+  # Install Tailscale and join the tailnet before starting Nomad.
+  # Nomad advertises on the Tailscale IP (100.64.0.0/10 CGNAT range),
+  # so Tailscale must be up before Nomad reads its config.
+  - |
+    curl -fsSL https://tailscale.com/install.sh | sudo sh
+    sudo tailscale up \
+      --auth-key=${tailscaleKey} \
+      --hostname=${tailscaleHostname} \
+      --force-reauth \
+      --accept-risk=lose-ssh \
+      --reset
+
+    echo "Waiting for Tailscale IP..."
+    TAILSCALE_READY=0
+    for i in {1..30}; do
+      TAILSCALE_IP=$(tailscale ip -4 2>/dev/null)
+      if [ -n "$TAILSCALE_IP" ]; then
+        echo "Tailscale IP acquired: $TAILSCALE_IP"
+        TAILSCALE_READY=1
+        break
+      fi
+      echo "Waiting for Tailscale IP... ($i/30)"
+      sleep 3
+    done
+
+    if [ "$TAILSCALE_READY" -ne 1 ]; then
+      echo "ERROR: Tailscale failed to acquire an IPv4 address"
+      exit 1
+    fi
+
+  # Start services (Tailscale must be up before Nomad starts)
+  - |
+    sudo systemctl daemon-reload
+    sudo systemctl restart docker
+
+    sudo systemctl enable consul.service
+    sudo systemctl start consul.service
+
+    sudo systemctl enable nomad.service
+    sudo systemctl start nomad.service
+
+  # Bootstrap Nomad ACL and save tokens
+  - |
+    # Wait for Nomad to be ready
+    sleep 30
+    for i in {1..30}; do
+      if nomad status &>/dev/null; then
+        echo "Nomad is ready"
+        break
+      fi
+      echo "Waiting for Nomad to be ready... ($i/30)"
+      sleep 2
+    done
+
+    # Skip self-bootstrap when joining an existing Raft (sun-aither owns ACL state).
+    if [ "${aclBootstrapEnabled}" != "true" ]; then
+      echo "ACL bootstrap skipped (joining existing cluster)"
+      echo "Completed"
+      exit 0
+    fi
+
+    # Bootstrap ACL system and save the management token
+    if [ ! -f /etc/nomad.d/secrets/bootstrap-token.json ]; then
+      nomad acl bootstrap -json > /etc/nomad.d/secrets/bootstrap-token.json 2>&1
+      if [ $? -eq 0 ]; then
+        chmod 600 /etc/nomad.d/secrets/bootstrap-token.json
+    
+        # Extract secret ID (management token)
+        MANAGEMENT_TOKEN=$(jq -r '.SecretID' /etc/nomad.d/secrets/bootstrap-token.json)
+    
+        # Save in a simple format for easy sourcing
+        echo "NOMAD_TOKEN=$MANAGEMENT_TOKEN" | sudo tee /etc/nomad.d/secrets/nomad-token.env > /dev/null
+        echo "NOMAD_ADDR=http://127.0.0.1:4646" | sudo tee -a /etc/nomad.d/secrets/nomad-token.env > /dev/null
+        chmod 600 /etc/nomad.d/secrets/nomad-token.env
+    
+        echo "Nomad ACL bootstrap completed successfully"
+    
+        # Apply the node policy (file created by write_files section)
+        export NOMAD_TOKEN=$MANAGEMENT_TOKEN
+        nomad acl policy apply -description "Node policy for clients" node-policy /etc/nomad.d/secrets/node-policy.hcl
+    
+        # Create client token and save it
+        nomad acl token create -name="client-node-token" -policy=node-policy -type=client -json > /etc/nomad.d/secrets/client-token.json 2>&1
+        if [ $? -eq 0 ]; then
+          CLIENT_TOKEN=$(jq -r '.SecretID' /etc/nomad.d/secrets/client-token.json)
+          echo "$CLIENT_TOKEN" | sudo tee /etc/nomad.d/secrets/client-token.txt > /dev/null
+          chmod 600 /etc/nomad.d/secrets/client-token.txt
+          chmod 600 /etc/nomad.d/secrets/client-token.json
+          echo "Client token created successfully: $CLIENT_TOKEN"
+        else
+          echo "Failed to create client token"
+        fi
+      else
+        echo "ACL bootstrap failed or already completed"
+      fi
+    fi
+    
+    echo "Completed"
+
+  # ── Nomad Autoscaler ──────────────────────────────────────────────────────
+  # Installs the nomad-autoscaler binary and starts its systemd service.
+  # Gated on ${autoscalerEnabled} so stacks that don't use a spot-pool
+  # don't run an idle autoscaler process.
+  - |
+    if [ "${autoscalerEnabled}" != "true" ]; then
+      echo "Autoscaler disabled — skipping install"
+      exit 0
+    fi
+
+    # Wait for Nomad to be stable before starting the autoscaler.
+    echo "Waiting for Nomad API..."
+    for i in $(seq 1 30); do
+      if curl -sf http://127.0.0.1:4646/v1/status/leader >/dev/null 2>&1; then
+        echo "Nomad API ready"
+        break
+      fi
+      echo "  ($i/30) waiting..."
+      sleep 5
+    done
+
+    wget -q https://releases.hashicorp.com/nomad-autoscaler/${autoscalerVersion}/nomad-autoscaler_${autoscalerVersion}_linux_amd64.zip
+    unzip -q nomad-autoscaler_${autoscalerVersion}_linux_amd64.zip
+    mv nomad-autoscaler /usr/local/bin/
+    chmod +x /usr/local/bin/nomad-autoscaler
+    rm -f nomad-autoscaler_${autoscalerVersion}_linux_amd64.zip
+    echo "nomad-autoscaler ${autoscalerVersion} installed"
+
+    mkdir -p /etc/nomad-autoscaler/policies
+    systemctl daemon-reload
+    systemctl enable nomad-autoscaler.service
+    systemctl start nomad-autoscaler.service
+    echo "nomad-autoscaler service started"
+
+  # ── Prometheus (scrapes Nomad metrics for the autoscaler APM) ───────────────
+  - |
+    if [ "${autoscalerEnabled}" != "true" ]; then
+      echo "Autoscaler disabled — skipping Prometheus install"
+      exit 0
+    fi
+
+    PROM_VER="2.52.0"
+    wget -q https://github.com/prometheus/prometheus/releases/download/v${PROM_VER}/prometheus-${PROM_VER}.linux-amd64.tar.gz -O /tmp/prom.tar.gz
+    tar -xzf /tmp/prom.tar.gz -C /tmp
+    mv /tmp/prometheus-${PROM_VER}.linux-amd64/prometheus /usr/local/bin/
+    mv /tmp/prometheus-${PROM_VER}.linux-amd64/promtool /usr/local/bin/
+    rm -rf /tmp/prom.tar.gz /tmp/prometheus-${PROM_VER}.linux-amd64
+    mkdir -p /etc/prometheus /var/lib/prometheus
+    echo "Prometheus ${PROM_VER} installed"
+
+    systemctl daemon-reload
+    systemctl enable prometheus.service
+    systemctl start prometheus.service
+    echo "Prometheus service started"
+
+write_files:
+
+  - path: /etc/consul.d/consul.hcl
+    permissions: "0640"
+    owner: root:root
+    content: |
+      data_dir = "/opt/consul/data"
+      client_addr = "0.0.0.0"
+      bind_addr = "0.0.0.0"
+      advertise_addr = "{{ GetPrivateInterfaces | include \"network\" \"10.0.0.0/8\" | attr \"address\" }}"
+      server = true
+      bootstrap_expect = ${nomad_server_count}
+      retry_join = ["localhost"]
+      performance {
+        raft_multiplier = 1
+      }
+      ui_config{
+        enabled = true
+      }
+
+  - path: /etc/nomad.d/nomad.hcl
+    permissions: "0640"
+    owner: root:root
+    content: |
+      datacenter = "${datacenter}"
+      data_dir = "/opt/nomad/data"
+      bind_addr = "0.0.0.0"
+
+      # Advertise on the Tailscale interface (100.64.0.0/10 CGNAT range).
+      # Evaluated at Nomad startup — Tailscale must be running before Nomad starts.
+      advertise {
+        http = "{{ GetAllInterfaces | include \"network\" \"100.64.0.0/10\" | attr \"address\" }}:4646"
+        rpc  = "{{ GetAllInterfaces | include \"network\" \"100.64.0.0/10\" | attr \"address\" }}:4647"
+        serf = "{{ GetAllInterfaces | include \"network\" \"100.64.0.0/10\" | attr \"address\" }}:4648"
+      }
+
+      server {
+        enabled = true
+        ${bootstrapExpectLine}
+${serverJoinStanza}
+      }
+
+      # Server is coordinator-only; no workloads run here.
+      # All jobs are scheduled on dedicated client nodes.
+
+      acl {
+        # Always enable ACLs. When joining an existing cluster (joinSunAither=true),
+        # ACL state is replicated from the Raft leader — no self-bootstrap needed.
+        # The runcmd section gates the bootstrap step via aclBootstrapEnabled.
+        enabled = true
+      }
+
+      plugin "docker" {
+        config {
+          # Image pull timeouts — bumped above Nomad's defaults so chonky
+          # bioinformatics containers (e.g. MAGMA's magma-container-1 is
+          # 2.6 GiB across 13 layers) can pull without restart-looping
+          # when network throughput is modest. Same fix landed in
+          # abc-deployments/abc-seedling-prod/cloud-init/nomad/ and on
+          # aither's live /etc/nomad.d/server.hcl on 2026-06-03.
+          #   image_pull_timeout      — total pull window (default 5m)
+          #   pull_activity_timeout   — per-progress idle window (default 2m)
+          image_pull_timeout    = "15m"
+          pull_activity_timeout = "5m"
+          allow_privileged = true
+          volumes {
+            enabled = true
+          }
+          gc {
+            image = false
+            image_delay = "1h"
+          }
+        }
+      }
+
+      # Consul runs on this node (GCP VPC IP); no need to route over Tailscale.
+      consul {
+        address = "{{ GetPrivateInterfaces | include \"network\" \"10.0.0.0/8\" | attr \"address\" }}:8500"
+      }
+
+      telemetry {
+        prometheus_metrics         = true
+        publish_allocation_metrics = true
+        publish_node_metrics       = true
+        disable_hostname           = true
+      }
+
+  # Node Policy for Client Registration
+  - path: /etc/nomad.d/secrets/node-policy.hcl
+    permissions: "0600"
+    owner: root:root
+    content: |
+      node {
+        policy = "write"
+      }
+      
+      agent {
+        policy = "read"
+      }
+
+  - path: /etc/systemd/system/consul.service
+    permissions: "0644"
+    owner: root:root
+    content: |
+      [Unit]
+      Description="HashiCorp Consul - A service mesh solution"
+      Documentation=https://www.consul.io/
+      Requires=network-online.target
+      After=network-online.target
+      ConditionFileNotEmpty=/etc/consul.d/consul.hcl
+      
+      [Service]      
+      User=root
+      Group=root
+      ExecStart=/usr/local/bin/consul agent -config-dir=/etc/consul.d/
+      ExecReload=/bin/kill --signal HUP $MAINPID
+      KillMode=process
+      KillSignal=SIGTERM
+      Restart=on-failure
+      LimitNOFILE=65536
+      
+      [Install]
+      WantedBy=multi-user.target
+
+  - path: /etc/systemd/system/nomad.service
+    permissions: "0644"
+    owner: root:root
+    content: |
+      [Unit]
+      Description="HashiCorp Nomad"
+      Documentation=https://www.nomadproject.io/
+      Requires=network-online.target
+      After=network-online.target consul.service tailscaled.service
+      [Service]
+      User=root
+      Group=root
+
+      EnvironmentFile=-/etc/nomad.d/nomad.env
+      ExecReload=/bin/kill -HUP $MAINPID
+      ExecStart=/usr/local/bin/nomad agent -config /etc/nomad.d
+      KillMode=process
+      KillSignal=SIGINT
+      LimitNOFILE=65536
+      LimitNPROC=infinity
+      Restart=on-failure
+      RestartSec=2
+      
+      TasksMax=infinity
+      OOMScoreAdjust=-1000
+      [Install]
+      WantedBy=multi-user.target
+
+  # ── Nomad Autoscaler: main config ────────────────────────────────────────
+  - path: /etc/nomad-autoscaler/config.hcl
+    permissions: "0644"
+    owner: root:root
+    content: |
+      nomad {
+        address = "http://127.0.0.1:4646"
+        token   = "${autoscalerNomadToken}"
+      }
+
+      apm "nomad_apm" {
+        driver = "nomad-apm"
+      }
+
+      # Prometheus APM — scrapes Nomad metrics via local Prometheus server.
+      apm "prometheus" {
+        driver = "prometheus"
+        config = {
+          address = "http://127.0.0.1:9090"
+        }
+      }
+
+      # GCP Managed Instance Group target.
+      # Credentials come from the instance metadata server (VM service account
+      # has roles/compute.instanceAdmin.v1 via the cloud-platform scope).
+      target "gce-mig" {
+        driver = "gce-mig"
+      }
+
+      log_level = "INFO"
+
+      telemetry {
+        prometheus_metrics       = true
+        prometheus_retention_time = "60s"
+      }
+
+  # ── Nomad Autoscaler: spot-pool scaling policy ────────────────────────────
+  - path: /etc/nomad-autoscaler/policies/spot-pool.hcl
+    permissions: "0644"
+    owner: root:root
+    content: |
+      scaling "gcp-spot-pool" {
+        enabled = true
+        min     = ${spotPoolMin}
+        max     = ${spotPoolMax}
+
+        policy {
+          # After a scale event, wait this long before evaluating again.
+          # Set higher than the MIG boot + cloud-init time (~12 min) to
+          # avoid thrashing while instances are still starting up.
+          cooldown = "12m"
+
+          # How often to evaluate the scaling policy.
+          evaluation_interval = "30s"
+
+          check "node_memory_utilization" {
+            source = "nomad_apm"
+
+            # percentage-allocated_memory: fraction of allocatable memory
+            # currently claimed across all gcp-spot nodes (node class is
+            # filtered via the target block below). target-value of 50%
+            # → scale up when >50% used, scale down when <50%.
+            # With min=1, always keeps at least one spot node warm.
+            query = "percentage-allocated_memory"
+
+            strategy "target-value" {
+              target = 50
+            }
+          }
+
+          target "gce-mig" {
+            project    = "${gcpProject}"
+            region     = "${gcpRegion}"
+            mig_name   = "${migName}"
+            node_class = "gcp-spot"
+          }
+        }
+      }
+
+  # ── Nomad Autoscaler: systemd service ─────────────────────────────────────
+  - path: /etc/systemd/system/nomad-autoscaler.service
+    permissions: "0644"
+    owner: root:root
+    content: |
+      [Unit]
+      Description=Nomad Autoscaler
+      Documentation=https://developer.hashicorp.com/nomad/tools/autoscaling
+      Requires=network-online.target nomad.service
+      After=network-online.target nomad.service
+
+      [Service]
+      User=root
+      Group=root
+      ExecStart=/usr/local/bin/nomad-autoscaler agent -config=/etc/nomad-autoscaler/config.hcl -policy-dir=/etc/nomad-autoscaler/policies
+      ExecReload=/bin/kill -HUP $MAINPID
+      KillMode=process
+      KillSignal=SIGINT
+      Restart=on-failure
+      RestartSec=5
+      LimitNOFILE=65536
+
+      [Install]
+      WantedBy=multi-user.target
+
+  # ── Prometheus: scrape config ─────────────────────────────────────────────
+  - path: /etc/prometheus/prometheus.yml
+    permissions: "0644"
+    owner: root:root
+    content: |
+      global:
+        scrape_interval: 15s
+        evaluation_interval: 15s
+
+      scrape_configs:
+        - job_name: "nomad"
+          metrics_path: "/v1/metrics"
+          params:
+            format: ["prometheus"]
+          static_configs:
+            - targets: ["127.0.0.1:4646"]
+
+  # ── Prometheus: systemd service ───────────────────────────────────────────
+  - path: /etc/systemd/system/prometheus.service
+    permissions: "0644"
+    owner: root:root
+    content: |
+      [Unit]
+      Description=Prometheus (Nomad metrics scraper for autoscaler APM)
+      Documentation=https://prometheus.io/
+      Requires=network-online.target nomad.service
+      After=network-online.target nomad.service
+
+      [Service]
+      User=root
+      Group=root
+      ExecStart=/usr/local/bin/prometheus \
+        --config.file=/etc/prometheus/prometheus.yml \
+        --storage.tsdb.path=/var/lib/prometheus \
+        --web.listen-address=127.0.0.1:9090 \
+        --storage.tsdb.retention.time=24h \
+        --log.level=warn
+      Restart=on-failure
+      RestartSec=5
+      LimitNOFILE=65536
+
+      [Install]
+      WantedBy=multi-user.target
+
+final_message: "Nomad server configured! Autoscaler: ${autoscalerEnabled} (MIG: ${migName}, max: ${spotPoolMax})."
