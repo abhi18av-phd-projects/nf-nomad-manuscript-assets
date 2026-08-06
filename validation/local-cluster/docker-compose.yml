@@ -33,7 +33,14 @@ services:
     volumes:
       - ./conf/client.hcl:/etc/nomad/agent.hcl:ro
       - /var/run/docker.sock:/var/run/docker.sock
+      # Shared across EVERY client replica — this is what makes the shared-POSIX
+      # work-dir mode demonstrable locally. Without it each client would have a
+      # private scratchdir and only the object-store modes would work.
+      - nomad-shared:/opt/nomad/shared
     networks: [nomad-dev]
+
+volumes:
+  nomad-shared:
 
 networks:
   nomad-dev:
