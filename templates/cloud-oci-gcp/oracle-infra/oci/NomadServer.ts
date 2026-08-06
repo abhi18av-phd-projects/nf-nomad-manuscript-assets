@@ -19,7 +19,7 @@ export class NomadServer extends pulumi.ComponentResource {
     public readonly ip: pulumi.Output<string>;
 
     constructor(name: string, args: NomadServerArgs, opts?: pulumi.ComponentResourceOptions) {
-        super("abc:cluster:oci::NomadServer", name, {}, opts);
+        super("nomadcluster:cluster:oci::NomadServer", name, {}, opts);
 
         const cloudInit = getScript('cloud-init-nomad-server.yml',{
             publicKey: publicKey,

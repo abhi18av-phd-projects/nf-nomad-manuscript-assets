@@ -35,7 +35,7 @@ export const ALL_NOMAD_DRIVERS: NomadDriver[] = [
 ];
 
 // GCS bucket that holds the pre-built external plugin binaries.
-const GCS_ARTIFACTS = "https://storage.googleapis.com/abc-hpc-bridge-artifacts";
+const GCS_ARTIFACTS = "https://storage.googleapis.com/<YOUR_ARTIFACTS_BUCKET>";
 
 const DEFAULT_ARTIFACTS = {
     exec2Url:       `${GCS_ARTIFACTS}/nomad-driver-exec2`,
@@ -82,7 +82,7 @@ export function generatePluginBlocks(drivers: NomadDriver[]): string {
             // 2.6 GiB across 13 layers) can pull without restart-looping
             // when network throughput is modest. Source: aither's
             // /etc/nomad.d/server.hcl after 2026-06-03 patch; sibling
-            // change in abc-deployments/abc-seedling-prod/cloud-init/nomad/.
+            // change in your deployment repository/cloud-init/nomad/.
             //   image_pull_timeout      — total pull window (default 5m)
             //   pull_activity_timeout   — per-progress idle window (default 2m)
             `${I3}image_pull_timeout    = "15m"`,
@@ -155,7 +155,7 @@ interface NomadClientArgs {
     project: Input<string>;
     zone: Input<string>;
     subnetwork: Input<string>;
-    /** Tailscale MagicDNS hostname of the Nomad server (e.g. abc-dev-nomad-server) */
+    /** Tailscale MagicDNS hostname of the Nomad server (e.g. nomad-cluster-dev-nomad-server) */
     serverHostname: string;
     tailscaleKey: Input<string>;
     enableOsLogin: Input<boolean>;
@@ -169,7 +169,7 @@ interface NomadClientArgs {
     nodeClass?: string;
     /** Make this instance preemptible (spot). Sets scheduling accordingly. */
     preemptible?: boolean;
-    /** Override the Tailscale hostname. Defaults to abc-<stack>-nomad-client-<index>. */
+    /** Override the Tailscale hostname. Defaults to nomad-cluster-<stack>-nomad-client-<index>. */
     tailscaleHostnameOverride?: string;
     /**
      * Nomad task drivers to install and enable.
@@ -179,7 +179,7 @@ interface NomadClientArgs {
     drivers?: NomadDriver[];
     /**
      * URL overrides for external plugin binary downloads.
-     * Defaults to the abc-hpc-bridge-artifacts GCS bucket.
+     * Defaults to the <YOUR_ARTIFACTS_BUCKET> GCS bucket.
      * Each binary must be a standalone executable (not zipped).
      */
     driverArtifacts?: {
@@ -201,10 +201,10 @@ export class NomadClient extends pulumi.ComponentResource {
     public readonly ip: pulumi.Output<string>;
 
     constructor(name: string, args: NomadClientArgs, opts?: pulumi.ComponentResourceOptions) {
-        super("abc:cluster:gcp::NomadClient", name, {}, opts);
+        super("nomadcluster:cluster:gcp::NomadClient", name, {}, opts);
 
         const tailscaleHostname = args.tailscaleHostnameOverride
-            ?? `abc-${args.stack}-nomad-client-${args.index}`;
+            ?? `nomad-cluster-${args.stack}-nomad-client-${args.index}`;
 
         const nodeClass = args.nodeClass ?? "gcp-ondemand";
 

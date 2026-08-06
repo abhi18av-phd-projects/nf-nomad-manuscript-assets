@@ -1,5 +1,5 @@
 name: spot-compute
-description: GCP spot (preemptible) Nomad compute clients that join an EXISTING prod Nomad cluster (default target abc-seedling-prod / aither) as compute-pool nodes. Isolated from the gcp-infra research stack.
+description: GCP spot (preemptible) Nomad compute clients that join an EXISTING prod Nomad cluster (default target nomad-cluster-prod / aither) as compute-pool nodes. Isolated from the gcp-infra research stack.
 runtime:
   name: nodejs
   options:

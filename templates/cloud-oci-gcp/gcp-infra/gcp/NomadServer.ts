@@ -45,7 +45,7 @@ export class NomadServer extends pulumi.ComponentResource {
     public readonly ip: pulumi.Output<string>;
 
     constructor(name: string, args: NomadServerArgs, opts?: pulumi.ComponentResourceOptions) {
-        super("abc:cluster:gcp::NomadServer", name, {}, opts);
+        super("nomadcluster:cluster:gcp::NomadServer", name, {}, opts);
 
         const joinSunAither = args.joinSunAither ?? false;
         const sunAitherServerJoin = args.sunAitherServerJoin ?? [];
@@ -93,7 +93,7 @@ export class NomadServer extends pulumi.ComponentResource {
                 nomad_server_count:  1,
                 arch:                'amd64',
                 tailscaleKey:        tailscaleKey,
-                tailscaleHostname:   `abc-${args.stack}-nomad-server`,
+                tailscaleHostname:   `nomad-cluster-${args.stack}-nomad-server`,
                 bootstrapExpectLine: bootstrapExpectLine,
                 serverJoinStanza:    serverJoinStanza,
                 aclBootstrapEnabled: aclBootstrapEnabled,

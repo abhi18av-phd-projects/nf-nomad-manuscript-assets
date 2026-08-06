@@ -1,7 +1,7 @@
 # spot-compute — autoscaled GCP spot compute for a prod Nomad cluster
 
 A standalone Pulumi project that adds **elastic GCP spot capacity** to an
-existing prod Nomad cluster (default: `abc-seedling-prod`, server = aither) as
+existing prod Nomad cluster (default: `nomad-cluster-prod`, server = aither) as
 `node_pool=compute` clients — to relieve pressure on the on-prem nomadlab nodes.
 Isolated from the `gcp-infra` research stack (no shared state).
 
@@ -41,10 +41,10 @@ Isolated from the `gcp-infra` research stack (no shared state).
   **Note:** Nomad `ephemeral_disk` does *not* bound worker scratch — it's host
   disk via the host_volume, not alloc disk. nf-nomad ignores the Nextflow `disk`
   directive entirely (sets only cpu/memory), so workers always get the 300 MB
-  default alloc reservation and write data to this volume. See abc-universe
-  `brainstorms/abc-seedling-prod/2026-06-05-nextflow-ephemeral-disk-analysis.md`.
+  default alloc reservation and write data to this volume. See the project notes
+  `brainstorms/nomad-cluster-prod/2026-06-05-nextflow-ephemeral-disk-analysis.md`.
 
-## Fleet (default — `Pulumi.seedling-prod.yaml`)
+## Fleet (default — `Pulumi.prod.yaml`)
 
 | node_class       | machine            | vCPU/RAM | min | max |
 |------------------|--------------------|----------|-----|-----|
@@ -58,7 +58,7 @@ cannot lift a pool from **0** (no nodes → no signal), so the smallest pool run
 `min=1` (one warm node) to guarantee a scale-up signal. The `min=0` pools
 (16c/32c) auto-scale 1→max once seeded but do **not** auto-lift from 0 on this
 signal alone — bump their `min`, or add a pending/blocked-eval APM source
-(seedling VictoriaMetrics) to make them true scale-from-zero. Spot reclamation
+(the cluster's VictoriaMetrics) to make them true scale-from-zero. Spot reclamation
 of any node triggers Nomad to reschedule its allocations (nf-nomad re-runs the
 affected tasks) — the reallocation path.
 
@@ -83,7 +83,7 @@ nodes don't accumulate as stale entries:
 ## Deploy
 
 ```bash
-pulumi stack select seedling-prod
+pulumi stack select prod
 # Mint the ephemeral node key in-stack (recommended): export a Tailscale cred
 export TAILSCALE_API_KEY=tskey-api-XXXX           # or TAILSCALE_OAUTH_CLIENT_ID/SECRET
 export TAILSCALE_TAILNET=<your-tailnet>

@@ -16,7 +16,7 @@ checklist, not an incident log.
 | `034_pulumi/*/id_ed25519`, `id_ed25519.pub` | SSH keypairs, incl. two **private** keys | Never migrate. Templates must generate or accept a key at deploy time. |
 | `034_pulumi/*/node_modules/` | ~1.6 GB of dependencies | Never migrate. `package.json` + lockfile only. |
 | `034_pulumi/*/` LevelDB files (`MANIFEST-*`, `LOCK`, `CURRENT`, `*.ldb`) | Pulumi local-backend **state** | Never migrate. State is not a template. |
-| `spot-compute/Pulumi.seedling-prod.yaml` | `tskey-auth-XXXX` | Already redacted upstream — carry the placeholder form. |
+| `spot-compute/Pulumi.prod.yaml` | `tskey-auth-XXXX` | Already redacted upstream — carry the placeholder form. |
 
 ## Safe as-is
 

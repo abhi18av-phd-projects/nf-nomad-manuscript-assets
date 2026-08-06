@@ -3,7 +3,7 @@ import { Input } from "@pulumi/pulumi";
 import * as gcp from "@pulumi/gcp";
 import { getScript, getPublicKey, getSshKeysMetadata } from "./Util";
 
-const GCS_ARTIFACTS = "https://storage.googleapis.com/abc-hpc-bridge-artifacts";
+const GCS_ARTIFACTS = "https://storage.googleapis.com/<YOUR_ARTIFACTS_BUCKET>";
 const DEFAULT_ARTIFACTS = {
     exec2Url:       `${GCS_ARTIFACTS}/nomad-driver-exec2`,
     containerdUrl:  `${GCS_ARTIFACTS}/nomad-driver-containerd`,
@@ -49,7 +49,7 @@ export class SpotPoolMig extends pulumi.ComponentResource {
     public readonly nodeClass: string;
 
     constructor(name: string, args: SpotPoolMigArgs, opts?: pulumi.ComponentResourceOptions) {
-        super("abc:spot-compute::SpotPoolMig", name, {}, opts);
+        super("nomadcluster:spot-compute::SpotPoolMig", name, {}, opts);
 
         const artifacts = { ...DEFAULT_ARTIFACTS, ...args.driverArtifacts };
 
@@ -114,7 +114,7 @@ export class SpotPoolMig extends pulumi.ComponentResource {
                 "enable-oslogin": "FALSE",
                 "user-data":      cloudInit,
             },
-            tags: ["abc-spot-compute"],
+            tags: ["nomad-cluster-spot-compute"],
             serviceAccount: { scopes: ["https://www.googleapis.com/auth/cloud-platform"] },
         }, { parent: this });
 

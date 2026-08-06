@@ -21,7 +21,7 @@ export class Bastion extends pulumi.ComponentResource {
     public readonly ip: pulumi.Output<string>;
 
     constructor(name: string, args: BastionArgs, opts?: pulumi.ComponentResourceOptions) {
-        super("abc:cluster:oci::Bastion", name, {}, opts);
+        super("nomadcluster:cluster:oci::Bastion", name, {}, opts);
 
 
         const userData = pulumi.all([args.nomadServerIpAddress]).apply(([nomadServerIpAddress]) => {

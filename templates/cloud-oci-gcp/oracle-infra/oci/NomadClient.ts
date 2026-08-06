@@ -20,7 +20,7 @@ export class NomadClient extends pulumi.ComponentResource {
     public readonly ip: pulumi.Output<string>;
 
     constructor(name: string, args: NomadClientArgs, opts?: pulumi.ComponentResourceOptions) {
-        super("abc:cluster:oci::NomadClient", name, {}, opts);
+        super("nomadcluster:cluster:oci::NomadClient", name, {}, opts);
 
         const userData = pulumi.all([args.serverIp]).apply(([serverIp]) => {
             return getScript('cloud-init-nomad-client.yml', {

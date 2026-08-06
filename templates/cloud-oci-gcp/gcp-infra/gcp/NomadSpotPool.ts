@@ -14,7 +14,7 @@ interface NomadSpotPoolArgs {
     /** Tailscale MagicDNS hostname of the Nomad server. */
     serverHostname: string;
     tailscaleKey: Input<string>;
-    /** Nomad ACL token for the spot-pool node (abc-gcp-node-policy). Used by nomad-drain service. */
+    /** Nomad ACL token for the spot-pool node (nomad-cluster-gcp-node-policy). Used by nomad-drain service. */
     spotPoolNodeToken?: Input<string>;
     enableOsLogin: Input<boolean>;
     stack: string;
@@ -36,7 +36,7 @@ interface NomadSpotPoolArgs {
 }
 
 // GCS bucket for plugin binaries — shared with NomadClient defaults.
-const GCS_ARTIFACTS = "https://storage.googleapis.com/abc-hpc-bridge-artifacts";
+const GCS_ARTIFACTS = "https://storage.googleapis.com/<YOUR_ARTIFACTS_BUCKET>";
 const DEFAULT_ARTIFACTS = {
     exec2Url:       `${GCS_ARTIFACTS}/nomad-driver-exec2`,
     containerdUrl:  `${GCS_ARTIFACTS}/nomad-driver-containerd`,
@@ -57,13 +57,13 @@ export class NomadSpotPool extends pulumi.ComponentResource {
     public readonly migSelfLink: pulumi.Output<string>;
 
     constructor(name: string, args: NomadSpotPoolArgs, opts?: pulumi.ComponentResourceOptions) {
-        super("abc:cluster:gcp::NomadSpotPool", name, {}, opts);
+        super("nomadcluster:cluster:gcp::NomadSpotPool", name, {}, opts);
 
         const drivers   = args.drivers ?? ALL_NOMAD_DRIVERS;
         const artifacts = { ...DEFAULT_ARTIFACTS, ...args.driverArtifacts };
         const nomadPluginBlocks = generatePluginBlocks(drivers);
 
-        // Instance name base — GCP appends a random suffix, e.g. abc-dev-spot-a1b2c3.
+        // Instance name base — GCP appends a random suffix, e.g. nomad-cluster-dev-spot-a1b2c3.
         // cloud-init reads the actual name from the metadata server for Tailscale hostname.
         const baseInstanceName = `${name}`;
 

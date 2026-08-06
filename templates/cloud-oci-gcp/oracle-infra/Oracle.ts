@@ -18,10 +18,10 @@ export class OciStack extends pulumi.ComponentResource{
     public readonly nomadToken : pulumi.Output<string>;
 
     constructor(public stack: string) {
-        super("abc:cluster::OciStack", `OciStack-${stack}`, {}, {});
+        super("nomadcluster:cluster::OciStack", `OciStack-${stack}`, {}, {});
 
         const config = new pulumi.Config();
-        const domainName = config.get('domainName') || 'dev.abc-cluster.cloud';
+        const domainName = config.get('domainName') || 'dev.<YOUR_DOMAIN>';
         const tailscaleKey = config.get('tailscaleKey');
 
         const compartmentOcid = config.require("compartmentOcid");
@@ -58,41 +58,41 @@ export class OciStack extends pulumi.ComponentResource{
         const ubuntuImageId = latestUbuntuLinux.then(img => img.images[0].id);
         const ubuntuClientImageId = latestClientUbuntuLinux.then(img => img.images[0].id);
 
-        const vcn = new oci.core.Vcn(`abc-${stack}-vcn`, {
+        const vcn = new oci.core.Vcn(`nomad-cluster-${stack}-vcn`, {
             compartmentId: compartmentOcid,
             cidrBlock: "10.0.0.0/16",
-            displayName: `abc-${stack}-vcn`,
+            displayName: `nomad-cluster-${stack}-vcn`,
         });
 
-        const natGateway = new oci.core.NatGateway(`abc-${stack}-nat`, {
+        const natGateway = new oci.core.NatGateway(`nomad-cluster-${stack}-nat`, {
             compartmentId: compartmentOcid,
             vcnId: vcn.id,
-            displayName: `abc-${stack}-nat`,
+            displayName: `nomad-cluster-${stack}-nat`,
         });
 
-        const gw = new oci.core.InternetGateway(`abc-${stack}-gw`, {
+        const gw = new oci.core.InternetGateway(`nomad-cluster-${stack}-gw`, {
             compartmentId: compartmentOcid,
             vcnId: vcn.id,
-            displayName: `abc-${stack}-gw`,
+            displayName: `nomad-cluster-${stack}-gw`,
             enabled: true,
         });
 
-        const serviceGateway = new oci.core.ServiceGateway(`abc-${stack}-srv-gw`, {
+        const serviceGateway = new oci.core.ServiceGateway(`nomad-cluster-${stack}-srv-gw`, {
             compartmentId: compartmentOcid,
             vcnId: vcn.id,
             services: [{
                 serviceId: services.then(list => list.services[0].id),
             }],
-            displayName: `abc-${stack}-srv-gw`,
+            displayName: `nomad-cluster-${stack}-srv-gw`,
         }, {});
 
 
 //------------------------------------------
 
-        const rtPrivate = new oci.core.RouteTable(`abc-${stack}-priv-rt`, {
+        const rtPrivate = new oci.core.RouteTable(`nomad-cluster-${stack}-priv-rt`, {
             compartmentId: compartmentOcid,
             vcnId: vcn.id,
-            displayName: `abc-${stack}-priv-rt`,
+            displayName: `nomad-cluster-${stack}-priv-rt`,
             routeRules: [
                 {
                     destination: "0.0.0.0/0",
@@ -109,10 +109,10 @@ export class OciStack extends pulumi.ComponentResource{
             dependsOn: [natGateway],
         });
 
-        const slPrivate = new oci.core.SecurityList(`abc-${stack}-priv-sg`, {
+        const slPrivate = new oci.core.SecurityList(`nomad-cluster-${stack}-priv-sg`, {
             compartmentId: compartmentOcid,
             vcnId: vcn.id,
-            displayName: `abc-${stack}-priv`,
+            displayName: `nomad-cluster-${stack}-priv`,
             egressSecurityRules: [{
                 destination: "0.0.0.0/0",
                 protocol: "all",
@@ -126,11 +126,11 @@ export class OciStack extends pulumi.ComponentResource{
         });
 
 
-        const sbPrivate = new oci.core.Subnet(`abc-${stack}-priv-sn`, {
+        const sbPrivate = new oci.core.Subnet(`nomad-cluster-${stack}-priv-sn`, {
             compartmentId: compartmentOcid,
             cidrBlock: '10.0.2.0/24',
             vcnId: vcn.id,
-            displayName: `abc-${stack}-priv-sb`,
+            displayName: `nomad-cluster-${stack}-priv-sb`,
             prohibitPublicIpOnVnic: true,
             prohibitInternetIngress: true,
             routeTableId: rtPrivate.id,
@@ -139,7 +139,7 @@ export class OciStack extends pulumi.ComponentResource{
             dependsOn: [serviceGateway]
         });
 
-        const nomadServer = new NomadServer(`abc-${stack}-nomad-server`, {
+        const nomadServer = new NomadServer(`nomad-cluster-${stack}-nomad-server`, {
             compartmentId: compartmentOcid,
             subnet: sbPrivate.id,
             targetAD: targetDomain,
@@ -151,7 +151,7 @@ export class OciStack extends pulumi.ComponentResource{
         const clientCount = config.getNumber("nomadClientCount") ?? 2;
         const nomadClients = [];
         for (let i = 0; i < clientCount; i++) {
-            const client = new NomadClient(`abc-${stack}-nomad-client-${i}`, {
+            const client = new NomadClient(`nomad-cluster-${stack}-nomad-client-${i}`, {
                 compartmentId: compartmentOcid,
                 subnet: sbPrivate.id,
                 targetAD: targetDomain,
@@ -164,10 +164,10 @@ export class OciStack extends pulumi.ComponentResource{
         }
 
         //------------------------------------------
-        const rtTable = new oci.core.RouteTable(`abc-${stack}-pub-rt`, {
+        const rtTable = new oci.core.RouteTable(`nomad-cluster-${stack}-pub-rt`, {
             compartmentId: compartmentOcid,
             vcnId: vcn.id,
-            displayName: `abc-${stack}-pub-rt`,
+            displayName: `nomad-cluster-${stack}-pub-rt`,
             routeRules: [{
                 networkEntityId: gw.id,
                 destination: "0.0.0.0/0",
@@ -175,10 +175,10 @@ export class OciStack extends pulumi.ComponentResource{
             }]
         });
 
-        const sgList = new oci.core.SecurityList(`abc-${stack}-pub-sg`, {
+        const sgList = new oci.core.SecurityList(`nomad-cluster-${stack}-pub-sg`, {
             compartmentId: compartmentOcid,
             vcnId: vcn.id,
-            displayName: `abc-${stack}-pub-sg`,
+            displayName: `nomad-cluster-${stack}-pub-sg`,
             egressSecurityRules: [{
                 destination: "0.0.0.0/0",
                 protocol: "all",
@@ -192,18 +192,18 @@ export class OciStack extends pulumi.ComponentResource{
             ]
         });
 
-        const sbPublic = new oci.core.Subnet(`abc-${stack}-pub-sn`, {
+        const sbPublic = new oci.core.Subnet(`nomad-cluster-${stack}-pub-sn`, {
             compartmentId: compartmentOcid,
             cidrBlock: '10.0.1.0/24',
             vcnId: vcn.id,
-            displayName: `abc-${stack}-pub`,
+            displayName: `nomad-cluster-${stack}-pub`,
             routeTableId: rtTable.id,
             securityListIds: [sgList.id],
             prohibitPublicIpOnVnic: false,
             prohibitInternetIngress: false,
         });
 
-        const bastion = new Bastion(`abc-${stack}-bastion`, {
+        const bastion = new Bastion(`nomad-cluster-${stack}-bastion`, {
             compartmentId: compartmentOcid,
             subnet: sbPublic.id,
             targetAD: targetDomain,
@@ -298,7 +298,7 @@ NOMAD_TOKEN=${nomadToken} nomad job run web.hcl
                 },
                 create: `
                 curl -fsSL https://tailscale.com/install.sh | sudo sh
-                sudo tailscale up --auth-key=${tailscaleKey} --hostname=abc-${stack}-nomad-server                
+                sudo tailscale up --auth-key=${tailscaleKey} --hostname=nomad-cluster-${stack}-nomad-server                
             `,
             }, {dependsOn: [tailPrivateCloudInit]});
 

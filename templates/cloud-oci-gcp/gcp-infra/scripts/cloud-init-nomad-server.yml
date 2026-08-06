@@ -280,7 +280,7 @@ ${serverJoinStanza}
           # bioinformatics containers (e.g. MAGMA's magma-container-1 is
           # 2.6 GiB across 13 layers) can pull without restart-looping
           # when network throughput is modest. Same fix landed in
-          # abc-deployments/abc-seedling-prod/cloud-init/nomad/ and on
+          # your deployment repository/cloud-init/nomad/ and on
           # aither's live /etc/nomad.d/server.hcl on 2026-06-03.
           #   image_pull_timeout      — total pull window (default 5m)
           #   pull_activity_timeout   — per-progress idle window (default 2m)

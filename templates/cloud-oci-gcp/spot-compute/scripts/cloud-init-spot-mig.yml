@@ -1,6 +1,6 @@
 #cloud-config
 # GCP SPOT Nomad compute client that joins an EXISTING prod Nomad cluster
-# (e.g. abc-seedling-prod, server = aither) as a pure client in the compute
+# (e.g. nomad-cluster-prod, server = aither) as a pure client in the compute
 # node_pool. Ubuntu 24.04. Preemptible — on GCP spot reclamation the node
 # drops out and Nomad reschedules its allocations elsewhere (nf-nomad
 # re-runs the affected pipeline tasks). This is the reallocation test path.
@@ -10,11 +10,11 @@
 #   nomad_version      — Nomad release (must match the prod cluster, e.g. 1.11.2)
 #   arch               — amd64 / arm64
 #   prodServerJoin     — prod Nomad server RPC addr, e.g. <NOMAD_NODE_TAILNET_IP>:4647 (aither)
-#   datacenter         — prod datacenter, e.g. seedling-prod
+#   datacenter         — prod datacenter, e.g. prod
 #   nodePool           — Nomad node_pool, e.g. compute
 #   nodeClass          — Nomad node_class, e.g. gcp-spot
 #   localitySite       — meta node.locality.site, e.g. gcp-johannesburg
-#   nfWorkPath         — host_volume "nf-work" path (matches prod: /opt/abc-seedling/nf-work)
+#   nfWorkPath         — host_volume "nf-work" path (matches prod: /opt/nomad-cluster/nf-work)
 #   scratchPath        — host_volume "scratch" path (matches prod: /opt/nomad/scratch)
 #   dataDiskDevice     — attached data disk device for worker scratch (/dev/disk/by-id/google-nfdata)
 #   tailscaleKey       — Tailscale auth key (ephemeral, reusable)
@@ -307,12 +307,12 @@ runcmd:
       && echo "s5cmd mirrored to ${nfWorkPath}/bin/s5cmd" || echo "WARNING: s5cmd mirror to nf-work/bin failed"
 
   # ── 8. Tailscale — hostname derived from the GCP instance name (metadata) ─
-  # Each MIG instance gets a unique GCP name (e.g. abc-...-spot-8c16g-a1b2);
+  # Each MIG instance gets a unique GCP name (e.g. nomad-cluster-...-spot-8c16g-a1b2);
   # use it as both the Tailscale hostname and (via OS hostname) the Nomad node.
   - |
     curl -fsSL https://tailscale.com/install.sh | sh
     INSTANCE_NAME=$(curl -s -H "Metadata-Flavor: Google" \
-      "http://metadata.google.internal/computeMetadata/v1/instance/name" || echo "abc-spot-unknown")
+      "http://metadata.google.internal/computeMetadata/v1/instance/name" || echo "nomad-cluster-spot-unknown")
     hostnamectl set-hostname "$INSTANCE_NAME" 2>/dev/null || true
     tailscale up \
       --auth-key="${tailscaleKey}" \

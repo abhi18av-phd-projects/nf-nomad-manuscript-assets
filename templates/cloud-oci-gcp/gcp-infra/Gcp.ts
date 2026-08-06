@@ -21,7 +21,7 @@ export class GcpStack extends pulumi.ComponentResource {
     public readonly clientIps: pulumi.Output<string>[];
 
     constructor(public stack: string) {
-        super("abc:cluster::GcpStack", `GcpStack-${stack}`, {}, {});
+        super("nomadcluster:cluster::GcpStack", `GcpStack-${stack}`, {}, {});
 
         const config    = new pulumi.Config();
         const gcpConfig = new pulumi.Config("gcp");
@@ -48,7 +48,7 @@ export class GcpStack extends pulumi.ComponentResource {
         // (e.g. when joinSunAither=true and sun-aither owns the ACL state).
         const autoscalerNomadToken = config.getSecret('autoscalerNomadToken');
 
-        // Nomad client token for spot-pool node registration (abc-gcp-node-policy).
+        // Nomad client token for spot-pool node registration (nomad-cluster-gcp-node-policy).
         // Used by the nomad-drain service on spot instances to drain the node before preemption.
         const spotPoolNodeToken = config.getSecret('spotPoolNodeToken');
 
@@ -62,10 +62,10 @@ export class GcpStack extends pulumi.ComponentResource {
         const project = gcpConfig.require("project");
 
         // ── Tailscale cleanup on stack destroy ──────────────────────────────
-        const nomadServerHostname      = `abc-${stack}-nomad-server`;
-        const pruneTailscaleOrphansName = `abc-${stack}-prune-tailscale-orphans`;
+        const nomadServerHostname      = `nomad-cluster-${stack}-nomad-server`;
+        const pruneTailscaleOrphansName = `nomad-cluster-${stack}-prune-tailscale-orphans`;
         const tailscaleCleanupSnapshot  = process.env.TAILSCALE_API_KEY && process.env.TAILSCALE_TAILNET
-            ? pulumi.output(tailscale.getDevices({ namePrefix: `abc-${stack}-` })).apply((result) =>
+            ? pulumi.output(tailscale.getDevices({ namePrefix: `nomad-cluster-${stack}-` })).apply((result) =>
                 JSON.stringify(result.devices.map((device) => ({
                     id:       device.id,
                     hostname: device.hostname,
@@ -76,7 +76,7 @@ export class GcpStack extends pulumi.ComponentResource {
 
         const pruneTailscaleOrphans = new command.local.Command(pruneTailscaleOrphansName, {
             create: "true",
-            delete: `scripts/tailscale/prune-orphan-devices.sh --stack ${stack} --project ${project} --prefix abc-${stack}- --apply`,
+            delete: `scripts/tailscale/prune-orphan-devices.sh --stack ${stack} --project ${project} --prefix nomad-cluster-${stack}- --apply`,
             environment: {
                 TAILSCALE_API_KEY:        process.env.TAILSCALE_API_KEY ?? "",
                 TAILNET:                  process.env.TAILNET ?? "",
@@ -101,16 +101,16 @@ export class GcpStack extends pulumi.ComponentResource {
         });
 
         // ── VPC Network ─────────────────────────────────────────────────────
-        const network = new gcp.compute.Network(`abc-${stack}-vpc`, {
-            name:                 `abc-${stack}-vpc`,
+        const network = new gcp.compute.Network(`nomad-cluster-${stack}-vpc`, {
+            name:                 `nomad-cluster-${stack}-vpc`,
             project:              project,
             autoCreateSubnetworks: false,
             description:          `Nomad cluster VPC for stack ${stack}`,
         });
 
         // ── Private subnet (all VMs) ────────────────────────────────────────
-        const privateSubnet = new gcp.compute.Subnetwork(`abc-${stack}-priv-sn`, {
-            name:                 `abc-${stack}-priv-sn`,
+        const privateSubnet = new gcp.compute.Subnetwork(`nomad-cluster-${stack}-priv-sn`, {
+            name:                 `nomad-cluster-${stack}-priv-sn`,
             project:              project,
             region:               REGION,
             network:              network.id,
@@ -119,15 +119,15 @@ export class GcpStack extends pulumi.ComponentResource {
         });
 
         // ── Cloud Router + NAT (private subnet egress) ──────────────────────
-        const router = new gcp.compute.Router(`abc-${stack}-router`, {
-            name:    `abc-${stack}-router`,
+        const router = new gcp.compute.Router(`nomad-cluster-${stack}-router`, {
+            name:    `nomad-cluster-${stack}-router`,
             project: project,
             region:  REGION,
             network: network.id,
         });
 
-        new gcp.compute.RouterNat(`abc-${stack}-nat`, {
-            name:                          `abc-${stack}-nat`,
+        new gcp.compute.RouterNat(`nomad-cluster-${stack}-nat`, {
+            name:                          `nomad-cluster-${stack}-nat`,
             project:                       project,
             router:                        router.name,
             region:                        REGION,
@@ -140,8 +140,8 @@ export class GcpStack extends pulumi.ComponentResource {
         });
 
         // ── Firewall: internal Nomad RPC/Serf within private subnet ─────────
-        new gcp.compute.Firewall(`abc-${stack}-priv-internal-fw`, {
-            name:    `abc-${stack}-priv-internal-fw`,
+        new gcp.compute.Firewall(`nomad-cluster-${stack}-priv-internal-fw`, {
+            name:    `nomad-cluster-${stack}-priv-internal-fw`,
             project: project,
             network: network.id,
             allows: [
@@ -155,7 +155,7 @@ export class GcpStack extends pulumi.ComponentResource {
         // ── Spot Pool (MIG, autoscaler-managed) ────────────────────────────
         // The MIG name is deterministic — the server's autoscaler config
         // references it by name, so it must be computed before the server.
-        const spotPoolName = `abc-${stack}-spot`;
+        const spotPoolName = `nomad-cluster-${stack}-spot`;
         const spotPool = new NomadSpotPool(spotPoolName, {
             project:            project,
             region:             REGION,
@@ -173,7 +173,7 @@ export class GcpStack extends pulumi.ComponentResource {
         });
 
         // ── Nomad Server ────────────────────────────────────────────────────
-        const nomadServer = new NomadServer(`abc-${stack}-nomad-server`, {
+        const nomadServer = new NomadServer(`nomad-cluster-${stack}-nomad-server`, {
             project:              project,
             zone:                 ZONE,
             subnetwork:           privateSubnet.id,
@@ -197,7 +197,7 @@ export class GcpStack extends pulumi.ComponentResource {
         // ── Nomad On-Demand Clients ─────────────────────────────────────────
         const nomadClients: NomadClient[] = [];
         for (let i = 0; i < nomadClientCount; i++) {
-            const client = new NomadClient(`abc-${stack}-nomad-client-${i}`, {
+            const client = new NomadClient(`nomad-cluster-${stack}-nomad-client-${i}`, {
                 project:        project,
                 zone:           ZONE,
                 subnetwork:     privateSubnet.id,

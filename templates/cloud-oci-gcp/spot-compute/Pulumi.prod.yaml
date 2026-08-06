@@ -5,10 +5,10 @@ config:
   # MIG clients join the prod Nomad server's RPC; the autoscaler uses its HTTP API.
   spot-compute:prodServerJoin: "<NOMAD_SERVER_TAILNET_IP>:4647" # aither Tailscale RPC
   spot-compute:aitherNomadAddr: "http://<NOMAD_SERVER_TAILNET_IP>:4646"
-  spot-compute:datacenter: seedling-prod
+  spot-compute:datacenter: prod
   spot-compute:nodePool: compute
   spot-compute:localitySite: gcp-johannesburg
-  spot-compute:nfWorkPath: /opt/abc-seedling/nf-work
+  spot-compute:nfWorkPath: /opt/nomad-cluster/nf-work
   spot-compute:scratchPath: /opt/nomad/scratch
   spot-compute:nomadVersion: 1.11.2
   spot-compute:autoscalerVersion: 0.4.6

@@ -113,7 +113,7 @@ ${nomadPluginBlocks}
 
   # ── Node ACL token (for drain service → Nomad API) ──────────────────────
   # The drain service needs a valid Nomad ACL token to call `nomad node drain`.
-  # This token has the abc-gcp-node-policy (node:write + namespace read/exec).
+  # This token has the nomad-cluster-gcp-node-policy (node:write + namespace read/exec).
   - path: /etc/nomad.d/node-token.env
     permissions: "0600"
     owner: root:root
@@ -224,13 +224,13 @@ runcmd:
     nextflow -v || true
 
   # ── 8. Tailscale — dynamic hostname from GCP metadata ───────────────────
-  # Each MIG instance gets a unique GCP name (e.g. abc-dev-spot-a1b2c3).
+  # Each MIG instance gets a unique GCP name (e.g. nomad-cluster-dev-spot-a1b2c3).
   # We use that as the Tailscale hostname so every node is individually
   # reachable via MagicDNS without hardcoding hostnames in the template.
   - |
     curl -fsSL https://tailscale.com/install.sh | sh
     INSTANCE_NAME=$(curl -sf -H "Metadata-Flavor: Google" \
-      "http://metadata.google.internal/computeMetadata/v1/instance/name" || echo "abc-spot-unknown")
+      "http://metadata.google.internal/computeMetadata/v1/instance/name" || echo "nomad-cluster-spot-unknown")
     tailscale up \
       --auth-key="${tailscaleKey}" \
       --hostname="$INSTANCE_NAME" \

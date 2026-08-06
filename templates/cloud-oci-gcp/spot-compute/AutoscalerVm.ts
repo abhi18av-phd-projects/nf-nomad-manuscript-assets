@@ -80,7 +80,7 @@ export class AutoscalerVm extends pulumi.ComponentResource {
     public readonly privateIp: pulumi.Output<string>;
 
     constructor(name: string, args: AutoscalerVmArgs, opts?: pulumi.ComponentResourceOptions) {
-        super("abc:spot-compute::AutoscalerVm", name, {}, opts);
+        super("nomadcluster:spot-compute::AutoscalerVm", name, {}, opts);
 
         const policiesScript = buildPoliciesScript(args.project, args.region, args.migs, args.cooldown);
 
@@ -118,7 +118,7 @@ export class AutoscalerVm extends pulumi.ComponentResource {
                 "enable-oslogin": "FALSE",
                 "user-data":      cloudInit,
             },
-            tags: ["abc-spot-compute"],
+            tags: ["nomad-cluster-spot-compute"],
             serviceAccount: {
                 // SA with roles/compute.instanceAdmin.v1 — the gce-mig target uses it.
                 email:  args.serviceAccountEmail,

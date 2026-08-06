@@ -63,7 +63,7 @@ workers have no public addresses and egress through a NAT gateway.
 
 ```mermaid
 graph TB
-    subgraph VCN["OCI VCN — abc-&lt;stack&gt;"]
+    subgraph VCN["OCI VCN — nomad-cluster-&lt;stack&gt;"]
         subgraph Pub["Public subnet"]
             B["Bastion<br/>public IP · SSH jump"]
             IGW{{"Internet Gateway"}}
@@ -100,7 +100,7 @@ Tailscale mesh, which is what allows this tier to share one Nomad cluster with n
 
 ```mermaid
 graph TB
-    subgraph VPC["GCP VPC — abc-&lt;stack&gt;"]
+    subgraph VPC["GCP VPC — nomad-cluster-&lt;stack&gt;"]
         subgraph Sub["Private subnet"]
             GS["Nomad server"]
             GC["Nomad clients<br/><i>clientCount</i>"]
@@ -145,7 +145,7 @@ graph LR
     subgraph Existing["Existing Nomad cluster (elsewhere)"]
         AI["Nomad server<br/><i>on-premises</i>"]
     end
-    subgraph GCPS["GCP — abc-spot-&lt;stack&gt;"]
+    subgraph GCPS["GCP — nomad-cluster-spot-&lt;stack&gt;"]
         AS["Autoscaler VM<br/>e2-small, always on<br/>nomad-autoscaler"]
         MIG["Managed Instance Group<br/><b>SPOT</b> instances<br/>node_pool=compute<br/>host_volume nf-work"]
         SA["Service account<br/>+ IAM instanceAdmin"]

@@ -32,11 +32,10 @@ so these files are publishable as-is — no cluster identity, endpoints, or toke
 
 ## Reproducing without any vendor CLI — the Nomad head job
 
-A reviewer has **no abc CLI**, so the campaign must be launchable with stock
+A reviewer has **no project-specific CLI**, so the campaign must be launchable with stock
 HashiCorp Nomad. `nextflow-head.nomad.hcl` runs the Nextflow driver *as a Nomad
 batch job*; nf-nomad then submits each process as its own Nomad job. Launch it
-with plain `nomad job run` on any Nomad cluster — no `abc pipeline run`, no vendor
-tooling:
+with plain `nomad job run` on any Nomad cluster — no vendor tooling:
 
 ```bash
 # 1. put the secrets Variable on your cluster (see nextflow-head.vars.example)
