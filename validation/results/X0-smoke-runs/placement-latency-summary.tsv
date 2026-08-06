@@ -1,0 +1,5 @@
+trace	tasks	span_s	lat_n	lat_min	lat_p50	lat_p95	lat_p99	lat_max	lat_mean
+execution_trace-t-demo.txt	8	171.241	8	13.158	17.404	77.87	77.87	77.87	45.2705
+execution_trace-t-env.txt	4	30.357	4	3.039	3.183	8.137	8.137	8.137	4.92425
+execution_trace-t-rnaseq2.txt	4	34.757	4	3.151	5.24	9.976	9.976	9.976	6.2405
+execution_trace-t-strict.txt	4	27.98	4	3.221	5.328	6.185	6.185	6.185	5.1245

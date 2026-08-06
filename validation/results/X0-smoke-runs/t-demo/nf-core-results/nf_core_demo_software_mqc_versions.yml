@@ -1,0 +1,9 @@
+COWPY:
+  cowpy: 1.1.5
+FASTQC:
+  fastqc: 0.12.1
+SEQTK_TRIM:
+  seqtk: 1.4-r122
+Workflow:
+    nf-core/demo: v1.2.1dev-g3c55d39
+    Nextflow: 26.04.3
