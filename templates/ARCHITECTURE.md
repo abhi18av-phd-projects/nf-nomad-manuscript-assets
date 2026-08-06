@@ -62,8 +62,11 @@ submission blocker rather than a polish item, and it is X0 in the experiment han
 declaration into this repository, since a reviewer following the Zenodo DOI must not need access
 to a private repository. The three defects listed above still apply to what is here now.
 
-The randomised `nf-sleep` workload for the preemption trials (X3) also targets this template —
-it is what makes the resilience claim reproducible on a laptop rather than only on a spot fleet.
+**Superseded 2026-08-06.** The reviewer path is now `validation/local-cluster/` — a minimal
+multi-node Docker cluster derived from the upstream nf-nomad test setup. It needs only Docker,
+carries MinIO for the s5cmd mode, and supports node-kill chaos, which the single-agent upstream
+compose cannot. The Multipass template is therefore **not** on the critical path, and migrating
+`pulumi-provider-multipass` is no longer required for submission.
 
 ---
 
@@ -181,7 +184,7 @@ substrate for the resilience claim.
 
 | Experiment | Template | Status |
 |---|---|---|
-| **X0** provision + profile | `local-multipass` | ⚠ **blocked** — template does not provision a cluster |
+| **X0** provision + profile | **`validation/local-cluster`** (Docker) | ready — supersedes the Multipass path |
 | **X1** substrate neutrality | `sun-aither` (existing cluster) | ready |
 | **X2** mode equivalence | `gcp-infra` (MinIO + Fusion) | ready |
 | **X3** preemption, 10 trials | `gcp-infra` spot pool, or `spot-compute` | ready |

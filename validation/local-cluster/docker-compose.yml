@@ -1,0 +1,39 @@
+# Minimal multi-node Nomad cluster for reviewing nf-nomad.
+#   1 server (schedules, runs nothing) + N clients (run tasks) + MinIO (S3 work dir).
+# Scale clients with:  docker compose up -d --scale nomad-client=5
+services:
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports: ["9000:9000", "9001:9001"]
+    networks: [nomad-dev]
+
+  nomad-server:
+    build: .
+    command: ["agent", "-config=/etc/nomad/agent.hcl"]
+    volumes:
+      - ./conf/server.hcl:/etc/nomad/agent.hcl:ro
+    ports: ["4646:4646"]
+    networks:
+      nomad-dev:
+        aliases: [nomad-server]
+
+  # Replicated. Privileged because the Docker task driver needs the host socket;
+  # note the AGENT config still sets allow_privileged = false for the TASKS it runs.
+  nomad-client:
+    build: .
+    command: ["agent", "-config=/etc/nomad/agent.hcl"]
+    privileged: true
+    cgroup: host
+    security_opt: ["seccomp:unconfined", "apparmor:unconfined"]
+    depends_on: [nomad-server]
+    volumes:
+      - ./conf/client.hcl:/etc/nomad/agent.hcl:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks: [nomad-dev]
+
+networks:
+  nomad-dev:
