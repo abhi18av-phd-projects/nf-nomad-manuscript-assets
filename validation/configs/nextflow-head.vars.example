@@ -1,0 +1,13 @@
+# nextflow-head.vars.example — the Nomad Variable the head job reads for secrets.
+#
+# On YOUR Nomad cluster, before `nomad job run nextflow-head.nomad.hcl`, create a
+# Nomad Variable at path `nomad/jobs/nextflow-head` with these keys. Nothing
+# secret is baked into the job spec; it is fetched at runtime from this Variable.
+#
+#   nomad var put nomad/jobs/nextflow-head \
+#     nomad_token=<ACL token the Nextflow executor uses to submit process jobs> \
+#     s3_access_key=<S3 access key for the work-dir bucket, X2 only> \
+#     s3_secret_key=<S3 secret key, X2 only>
+#
+# For X1 (host-volume POSIX work dir) the s3_* keys are unused but harmless.
+# Give the token an ACL policy allowing job submit/read in the target namespace.
