@@ -121,8 +121,6 @@ EOT
 set -euo pipefail
 cd /local
 export NXF_ANSI_LOG=false
-# Nextflow 26.x's strict config parser rejects nf-nomad's closure DSL.
-export NXF_SYNTAX_PARSER=v1
 export NOMAD_ADDR="http://$${attr.unique.network.ip-address}:4646"
 export NOMAD_PLUGIN_VERSION="${var.plugin_version}"
 export RUN_TAG="${var.run_tag}"

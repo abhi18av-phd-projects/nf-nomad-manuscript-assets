@@ -86,14 +86,22 @@ through the Nomad executor to completion:
 Getting there required four fixes. Each produces a confusing failure, so they are
 worth knowing before you burn a long run:
 
-1. **`NXF_SYNTAX_PARSER=v1` is mandatory.** Nextflow 26.x ships a strict config
-   parser that rejects nf-nomad's Groovy closure DSL outright —
-   ``Error: `type` is not defined`` / ``` `attr` is not defined ``` / ``` `workDir`
-   is not defined ```. The legacy (v1) parser accepts it. Since nf-nomad ≥ 0.4.4
-   *requires* NXF ≥ 26.04.3, you need both the new Nextflow and the old parser.
-2. **Write the closure DSL one call per line.** The command-chain form
-   `volume = { type "host" name "nf-work" path "/work" }` fails with
-   `Unexpected input: 'name'`. Put each call on its own line.
+1. **Use the strict-parser config syntax — not the old closure DSL.** Nextflow
+   26.x's strict config parser rejects the Groovy closure DSL outright
+   (``Error: `type` is not defined`` / ``` `attr` is not defined ```). nf-nomad
+   adopted the compatible syntax upstream in
+   [PR #132](https://github.com/nextflow-io/nf-nomad/pull/132) (merged 2026-06-07):
+
+   | Old (closure DSL — fails on NXF 26.x) | Current (strict-parser) |
+   |---|---|
+   | `volume = { type "host" name "x" path "/w" }` | `volumes = [[type: "host", name: "x", path: "/w"]]` |
+   | `constraints = { attr { node { … } } }` | `constraints { node { … } }` |
+
+   With this syntax **no `NXF_SYNTAX_PARSER` override is needed** — verified here.
+   (The deprecated `NXF_SYNTAX_PARSER=v1` fallback makes the *old* DSL parse, but
+   don't ship that: it pins you to a parser Nextflow is retiring.)
+2. **`System.getenv()` is fine** under the strict parser — verified — so configs
+   can stay generic and site values can come from the environment.
 3. **`privileged = false`.** nf-nomad requests privileged Docker containers by
    default; most hardened Nomad agents refuse, and every task dies with
    `Docker privileged mode is disabled on this Nomad agent` — reported by Nextflow

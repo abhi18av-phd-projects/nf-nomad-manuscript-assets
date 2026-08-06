@@ -30,3 +30,10 @@ node_modules/
 
 # Untracked per-run site values (real Nomad addr/token, node names)
 validation/configs/campaign.env
+
+# Live Nomad ACL tokens from a local test cluster — MUST never reach this repo
+# (it is published to Zenodo). Generated at runtime by the local-cluster harness.
+validation/local-cluster/.nomad-token
+validation/local-cluster/.bootstrap.json
+**/.nomad-token
+**/.bootstrap.json

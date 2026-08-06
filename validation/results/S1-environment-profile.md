@@ -36,11 +36,12 @@ configs is sized to fit them.
 |---|---|
 | Nextflow | **26.04.3** (build 12259) |
 | nf-nomad plugin | **0.5.0-edge3** (public: `registry.nextflow.io`) |
-| Config parser | **v1 (legacy)** — `NXF_SYNTAX_PARSER=v1`, mandatory (see configs/README.md) |
+| Config parser | **strict (default)** — no `NXF_SYNTAX_PARSER` override; configs use the syntax from nf-nomad PR #132 |
 | Head-job image | `nextflow/nextflow:26.04.3` |
 
-`nf-nomad ≥ 0.4.4` requires `NXF ≥ 26.04.3`; the plugin's config DSL requires the
-legacy parser. Both constraints hold simultaneously and are pinned here.
+`nf-nomad ≥ 0.4.4` requires `NXF ≥ 26.04.3`. Since upstream PR #132 the plugin's
+config syntax parses under Nextflow's default strict parser, so no legacy-parser
+fallback is used.
 
 ## Network / egress (verified from inside a task container)
 
