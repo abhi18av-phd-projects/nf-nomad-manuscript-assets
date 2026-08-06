@@ -101,3 +101,42 @@ substrate. State it in three tiers instead:
 X1 therefore claims **substrate neutrality of the biological result**, evidenced
 by identical calls across arms, with the coverage-count spread reported and
 bounded by the published reference's own serial-vs-parallel spread.
+
+---
+
+## Run-configuration findings (X1 execution, 2026-08-06)
+
+Four things had to be right before either arm produced a valid run. Each failed
+fast and cheaply, but each would have invalidated a long run silently:
+
+1. **The pipeline needs the legacy config parser, even though the plugin does
+   not.** `MTBseq-nf v1.0.0`'s own `nextflow.config` defines Groovy functions
+   (`def check_max(obj, type)`), which Nextflow 26.x's strict parser rejects
+   (`Unexpected input: '('`). So `NXF_SYNTAX_PARSER=v1` is required *by the
+   pipeline*, not by nf-nomad — the plugin's own config is strict-parser-native
+   since upstream PR #132. Worth separating in the paper: the executor is ready
+   for the new parser; the existing pipeline ecosystem largely is not.
+   It is applied identically to both arms, so it cannot bias the comparison.
+
+2. **The parallel-mode parameter was renamed after the release.** In `v1.0.0`
+   the switch is **`--parallel`**; it became `--mtbseq_parallel` on later
+   commits. Passing the newer name to `v1.0.0` is silently ignored — Nextflow
+   accepts the unknown param and the run proceeds in **serial** mode
+   (`TBFULL`) instead of parallel (`TBBWA`/`TBLIST`/`TBPILE`/`TBREFINE`/
+   `TBVARIANTS`). Detected only by inspecting which processes were submitted.
+   **Always verify the emitted process names match the intended mode.**
+
+3. **Both arms must read the same bytes, but not the same path string.** Arm A
+   runs on the host; arm B runs in containers where the volume is mounted
+   elsewhere. Two sample sheets are therefore generated from one staged copy of
+   the data — identical content, different path prefix.
+
+4. **Verify staged data integrity before starting.** One of ten FASTQs completed
+   the transfer truncated (14 MB vs 64 MB) and failed `gzip -t`. A `gzip -t`
+   sweep over the staged inputs costs seconds and prevents a multi-hour run
+   failing partway, or worse, succeeding on truncated input.
+
+Related, from generating the sample sheet: Python's `csv.writer` emits **CRLF**
+by default, which put a trailing `\r` on every `fastq_2` URL and silently broke
+those downloads (`curl: (3) URL using bad/illegal format`). Sample sheets must be
+written with Unix line endings.
