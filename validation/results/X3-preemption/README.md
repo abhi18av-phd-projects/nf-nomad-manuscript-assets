@@ -69,3 +69,53 @@ and S3 health stayed `200`.
 - The recovery path depends on the task jobs' reschedule/restart policy, which
   the executor sets. Record that policy alongside the number — it is part of the
   result, not a background detail.
+
+---
+
+## Results — run 1 (2026-08-06): the two-layer finding
+
+**The unverified "median 47 s" does not reproduce.** Measured recovery is
+substantially faster, and — more importantly — the experiment revealed that
+preemption resilience is **two independent layers**, only one of which the
+original claim describes.
+
+### Layer 1 — Nomad reschedules the allocation
+
+`S4-preemption-noretry.tsv`, 5-sample parallel workflow, victims selected from
+one run's task jobs:
+
+| Trial | Process | Recovery (s) |
+|---|---|---|
+| 2 | FASTQC | 15.63 |
+| 3 | TBBWA | 18.95 |
+| 4 | TBREFINE | 11.23 |
+| 5 | TBBWA | 7.92 |
+
+**4 trials with a live victim, 4/4 recovered, 0 timeouts. Median 13.43 s**
+(range 7.92–18.95 s).
+
+Fewer than the 10 planned trials produced a measurement: the harness can only
+preempt a task that is *currently running*, and this workflow's per-sample phase
+does not sustain 10 sequential victims. Reported honestly as **n=4**; run 2
+below addresses this.
+
+### Layer 2 — the pipeline must also retry, or the run still dies
+
+With Nomad recovering every allocation, **the pipeline still failed**
+(`X3_EXIT=1` after 149 s). Nomad created the replacement allocation, but
+Nextflow had already recorded the task as failed and terminated the run, because
+the config did not set an `errorStrategy`.
+
+This matters for the manuscript's resilience claim:
+
+> Allocation-level recovery and pipeline-level survival are **different
+> properties**. Nomad healing the allocation in ~13 s does not by itself mean the
+> pipeline completes unattended. Surviving preemption requires
+> `errorStrategy = 'retry'` in the Nextflow config — which the project's own
+> production head-job config already sets (`errorStrategy = "retry"`,
+> `maxRetries = 1`), but which is not the Nextflow default.
+
+Claiming "the pipeline completed unattended" therefore requires stating the
+retry configuration as part of the result. Run 2 repeats the trials with
+`errorStrategy = 'retry'`, `maxRetries = 3` to measure survival under the
+realistic production configuration.
