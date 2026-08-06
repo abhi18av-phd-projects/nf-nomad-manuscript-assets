@@ -20,12 +20,12 @@ graph TB
     subgraph Host["One machine — Docker only"]
         subgraph Core["default cluster · 4 containers"]
             S["<b>nomad-server</b><br/>schedules only<br/>client { enabled = false }<br/>:4646 HTTP · :4647 RPC"]
-            C1["nomad-client-1"]
-            C2["nomad-client-2"]
-            C3["nomad-client-3<br/><i>CLIENTS=N to scale</i>"]
+            C1["nomad-client-1<br/><i>worker</i>"]
+            C2["nomad-client-2<br/><i>worker</i>"]
+            C3["nomad-client-3<br/><i>worker · CLIENTS=N to scale</i>"]
         end
-        SV[("shared volume<br/><i>NFS stand-in for the<br/>shared-POSIX mode</i>")]
-        M["<b>minio</b><br/>S3 endpoint<br/><i>profile: storage</i><br/>WITH_STORAGE=1"]
+        SV[("shared volume<br/><i>NFS stand-in —<br/>mode 1, shared POSIX FS</i>")]
+        M["<b>minio</b><br/>S3 endpoint<br/><i>profile: storage</i><br/>WITH_STORAGE=1<br/><i>mode 3, nf-nomad-s5cmd</i>"]
     end
 
     Op --> S
@@ -35,7 +35,7 @@ graph TB
     C1 -.-> SV
     C2 -.-> SV
     C3 -.-> SV
-    M -.->|"only for the<br/>s5cmd mode (X2)"| C1
+    M -.->|"mode 3 only —<br/>mode 2 (Fusion) needs<br/>no local service"| C1
 
     Chaos(["./scripts/chaos.sh"])
     Chaos ==>|"docker stop<br/>a busy client"| C2
@@ -54,9 +54,10 @@ graph TB
 (`client { enabled = false }`), so stopping a client exercises rescheduling rather than
 decapitating the cluster. Clients are replicas of one image, scaled with `CLIENTS=N`; each
 registers to the server and mounts a shared Docker volume that stands in for NFS, which is what
-makes the shared-POSIX work-dir mode demonstrable locally. **MinIO is opt-in** (`profile:
-storage`) because the reallocation test is pure scheduling — nothing stages data — so the
-default cluster is four containers. The heavy arrows trace one `chaos.sh` trial: stop a busy
+makes the shared-POSIX work-dir mode demonstrable locally. Mode numbering follows Figure 1 of
+the manuscript: 1 = shared POSIX FS, 2 = Fusion + Wave, 3 = `nf-nomad-s5cmd`. **MinIO is opt-in**
+(`profile: storage`) because it serves mode 3 only, and because the reallocation test is pure
+scheduling — nothing stages data — so the default cluster is four containers. The heavy arrows trace one `chaos.sh` trial: stop a busy
 client, its allocations are displaced, the scheduler places them on the survivors, and recovery
 is timed from the stop to the job regaining its desired count.
 
@@ -257,5 +258,6 @@ substrate for the resilience claim.
 | **X2** mode equivalence | `gcp-infra` (MinIO + Fusion) | ready |
 | **X3** preemption, 10 trials | `gcp-infra` spot pool, or `spot-compute` | ready |
 
-The cloud path is reviewable now. The local path — the one a reviewer without cloud credentials
-would reach for first — is the gap.
+The local path is the one a reviewer without cloud credentials reaches for first, and it is now
+the verified one (2026-08-06). The cloud templates are reviewable as code but their at-scale
+results are still to be generated; see the experiment handover for what each must produce.
