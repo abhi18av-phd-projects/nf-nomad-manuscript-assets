@@ -1,5 +1,9 @@
 # Templates
 
+> **Looking for the reviewer path?** It is not here — it is
+> [`../validation/local-cluster/`](../validation/local-cluster/), a Docker-only cluster that
+> needs no cloud account. These templates document the at-scale topology used for validation.
+
 **See [`ARCHITECTURE.md`](ARCHITECTURE.md)** for a diagram of what each template provisions,
 and for a documented gap between the manuscript's §3.1 local-template claim and the code.
 

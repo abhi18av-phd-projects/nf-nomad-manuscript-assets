@@ -3,9 +3,77 @@
 Diagrams of what each template actually provisions, drawn from the code in this repository
 rather than from the manuscript text. Where the two disagree, the disagreement is noted.
 
+The **local cluster** is the reviewer path and the only template verified end to end. The cloud
+templates document how the at-scale validation was run; the Multipass template is superseded.
+
 ---
 
-## ⚠ `local-multipass/` — does not yet provision a cluster
+## `validation/local-cluster/` — the reviewer artefact ★
+
+**Start here.** One machine, Docker only, no cloud account and no credentials. This is the
+path a reviewer takes, and it is the only template verified end to end (2026-08-06).
+
+```mermaid
+graph TB
+    Op(["Reviewer<br/>./scripts/start.sh"])
+
+    subgraph Host["One machine — Docker only"]
+        subgraph Core["default cluster · 4 containers"]
+            S["<b>nomad-server</b><br/>schedules only<br/>client { enabled = false }<br/>:4646 HTTP · :4647 RPC"]
+            C1["nomad-client-1"]
+            C2["nomad-client-2"]
+            C3["nomad-client-3<br/><i>CLIENTS=N to scale</i>"]
+        end
+        SV[("shared volume<br/><i>NFS stand-in for the<br/>shared-POSIX mode</i>")]
+        M["<b>minio</b><br/>S3 endpoint<br/><i>profile: storage</i><br/>WITH_STORAGE=1"]
+    end
+
+    Op --> S
+    C1 -->|register| S
+    C2 -->|register| S
+    C3 -->|register| S
+    C1 -.-> SV
+    C2 -.-> SV
+    C3 -.-> SV
+    M -.->|"only for the<br/>s5cmd mode (X2)"| C1
+
+    Chaos(["./scripts/chaos.sh"])
+    Chaos ==>|"docker stop<br/>a busy client"| C2
+    C2 ==>|"allocations<br/>displaced"| S
+    S ==>|"reschedule onto<br/>surviving nodes"| C1
+    S ==> C3
+
+    style S fill:#e1f5ff,stroke:#0066cc,stroke-width:2px
+    style C2 fill:#fdecea,stroke:#c62828,stroke-width:2px
+    style M fill:#f3f3f1,stroke:#9e9e9e,stroke-dasharray: 4 3
+    style SV fill:#e8f5e9,stroke:#2e7d32
+    style Chaos fill:#fdecea,stroke:#c62828
+```
+
+**Figure. The local cluster and a reallocation trial.** The server schedules but runs nothing
+(`client { enabled = false }`), so stopping a client exercises rescheduling rather than
+decapitating the cluster. Clients are replicas of one image, scaled with `CLIENTS=N`; each
+registers to the server and mounts a shared Docker volume that stands in for NFS, which is what
+makes the shared-POSIX work-dir mode demonstrable locally. **MinIO is opt-in** (`profile:
+storage`) because the reallocation test is pure scheduling — nothing stages data — so the
+default cluster is four containers. The heavy arrows trace one `chaos.sh` trial: stop a busy
+client, its allocations are displaced, the scheduler places them on the survivors, and recovery
+is timed from the stop to the job regaining its desired count.
+
+| Verified 2026-08-06 | |
+|---|---|
+| Cluster | 1 server + 3 clients ready, no object store |
+| Placement | 6-allocation job spread 3 / 2 / 1 |
+| Recovery | 4 trials, **median 26 s** (24, 26, 26, 27) |
+
+Compared with upstream's `docker/`, which runs a **single agent that is both server and
+client** and therefore cannot reschedule anything at all, the only structural change here is
+splitting those roles. Nomad version, ACL flow and `s5cmd` path are kept identical so the two
+do not drift.
+
+---
+
+## ⚠ `local-multipass/` — superseded, and incomplete
 
 **Read this before reviewing the local template.** The manuscript (§3.1, Supplementary S1)
 describes *"a Pulumi + Multipass project [that] provisions a 1-server + N-client Nomad cluster

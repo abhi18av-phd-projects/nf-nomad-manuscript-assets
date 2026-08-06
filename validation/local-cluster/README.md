@@ -17,6 +17,9 @@ nothing stages data — so MinIO sits behind a compose profile and the default c
 four containers rather than five. It is opt-in for X2, where the s5cmd work-dir mode
 needs an S3 endpoint.
 
+**Architecture diagram:** [`../../templates/ARCHITECTURE.md`](../../templates/ARCHITECTURE.md)
+shows the topology and traces one reallocation trial.
+
 ## Why Docker rather than Multipass
 
 The nf-nomad project already tests against a **containerised Nomad** in its own CI
