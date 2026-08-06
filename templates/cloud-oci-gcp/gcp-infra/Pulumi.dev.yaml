@@ -9,18 +9,6 @@ config:
   gcp-typescript:nomadClientCount: "1"
   # Spot pool: GCP MIG managed by Nomad Autoscaler (min=0, max below)
   gcp-typescript:spotPoolMaxSize: "3"
-  # ── Slurm cluster ───────────────────────────────────────────────────────────
-  gcp-typescript:slurmEnabled: "true"
-  # "ubuntu" = Slurm 23.11 from apt | "slurm-gcp" = SchedMD pre-baked image (Slurm 24.x+)
-  gcp-typescript:slurmImageMode: "slurm-gcp"
-  # Number of Slurm compute worker VMs (IPs: 10.0.2.41+)
-  gcp-typescript:slurmWorkerCount: "1"
-  # ── PBS cluster ─────────────────────────────────────────────────────────────
-  gcp-typescript:pbsEnabled: "true"
-  # "ubuntu" = build OpenPBS from source (~20 min) | "pbs-gcp" = pre-baked image (~8 min)
-  gcp-typescript:pbsImageMode: "ubuntu"
-  # Number of PBS execution worker VMs (IPs: 10.0.2.51+)
-  gcp-typescript:pbsWorkerCount: "1"
   # ── Nomad federation ────────────────────────────────────────────────────────
   # Join this stack's Nomad server into the existing sun-aither Raft via Tailscale.
   gcp-typescript:joinSunAither: "true"

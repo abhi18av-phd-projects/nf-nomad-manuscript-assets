@@ -157,7 +157,7 @@ runcmd:
 
   # ── 3. External plugin binaries ──────────────────────────────────────────
   # Downloads are non-fatal: a missing binary is logged as a warning and
-  # Nomad starts without that driver (matches PBS/Slurm driver pattern).
+  # Nomad starts without that driver (driver may be absent).
   - |
     download_plugin() {
       local dest="$1" url="$2"

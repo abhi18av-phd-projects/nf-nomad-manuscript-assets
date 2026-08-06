@@ -7,8 +7,6 @@ import { getPublicKey, getScript } from "./Util";
 import { NomadServer } from "./gcp/NomadServer";
 import { NomadClient } from "./gcp/NomadClient";
 import { NomadSpotPool } from "./gcp/NomadSpotPool";
-import { SlurmCluster } from "./gcp/SlurmCluster";
-import { PbsCluster } from "./gcp/PbsCluster";
 
 const publicKey = getPublicKey();
 
@@ -21,13 +19,6 @@ export class GcpStack extends pulumi.ComponentResource {
 
     public readonly nomadIp: pulumi.Output<string>;
     public readonly clientIps: pulumi.Output<string>[];
-    public readonly slurmEnabledOutput: pulumi.Output<boolean>;
-    public readonly slurmCtrlIp: pulumi.Output<string>;
-    public readonly slurmWorkerIps: pulumi.Output<string[]>;
-    public readonly slurmNomadAddr: pulumi.Output<string>;
-    public readonly pbsEnabledOutput: pulumi.Output<boolean>;
-    public readonly pbsCtrlIp: pulumi.Output<string>;
-    public readonly pbsNomadAddr: pulumi.Output<string>;
 
     constructor(public stack: string) {
         super("abc:cluster::GcpStack", `GcpStack-${stack}`, {}, {});
@@ -44,8 +35,6 @@ export class GcpStack extends pulumi.ComponentResource {
         });
 
         // ── Feature flags ───────────────────────────────────────────────────
-        const slurmEnabled          = config.getBoolean('slurmEnabled')          ?? false;
-        const pbsEnabled            = config.getBoolean('pbsEnabled')            ?? false;
         const enableOsLogin         = config.getBoolean('enableOsLogin')         ?? false;
 
         // ── Scaling parameters ──────────────────────────────────────────────
@@ -54,17 +43,7 @@ export class GcpStack extends pulumi.ComponentResource {
         // Spot pool: managed by Nomad Autoscaler via GCP MIG (min=0, max configurable).
         const spotPoolMaxSize       = config.getNumber('spotPoolMaxSize')       ?? 3;
         // Cluster worker counts (default 1 — min 1 when cluster is enabled).
-        const slurmWorkerCount      = config.getNumber('slurmWorkerCount')      ?? 1;
-        const pbsWorkerCount        = config.getNumber('pbsWorkerCount')        ?? 1;
-
         // ── Cluster config ──────────────────────────────────────────────────
-        const slurmDriverArtifactUrl = config.get("slurmDriverArtifactUrl")
-            || "https://storage.googleapis.com/abc-hpc-bridge-artifacts/nomad-driver-slurm";
-        const slurmImageMode = (config.get('slurmImageMode') ?? 'slurm-gcp') as 'ubuntu' | 'slurm-gcp';
-        const pbsDriverArtifactUrl = config.get("pbsDriverArtifactUrl")
-            || "https://storage.googleapis.com/abc-hpc-bridge-artifacts/pbs";
-        const pbsImageMode = (config.get('pbsImageMode') ?? 'ubuntu') as 'ubuntu' | 'pbs-gcp';
-
         // Nomad management token for the autoscaler → used when ACLs are enabled
         // (e.g. when joinSunAither=true and sun-aither owns the ACL state).
         const autoscalerNomadToken = config.getSecret('autoscalerNomadToken');
@@ -235,79 +214,13 @@ export class GcpStack extends pulumi.ComponentResource {
             nomadClients.push(client);
         }
 
-        // ── Slurm Cluster (optional) ────────────────────────────────────────
-        let slurmCtrlIp   = pulumi.output("");
-        let slurmWorkerIps = pulumi.output([] as string[]);
-        if (slurmEnabled) {
-            const mungeKey = new random.RandomBytes(
-                `abc-${stack}-munge-key`, { length: 1024 }, { parent: this }
-            );
-            const slurmCluster = new SlurmCluster(`abc-${stack}-slurm`, {
-                project:               project,
-                zone:                  ZONE,
-                network:               network.id,
-                subnetwork:            privateSubnet.id,
-                nomadServerHostname:   nomadServerHostname,
-                tailscaleKey:          tailscaleKey,
-                enableOsLogin:         enableOsLogin,
-                stack:                 stack,
-                mungeKeyB64:           mungeKey.base64,
-                nomadVersion:          "1.11.2",
-                slurmDriverArtifactUrl: slurmDriverArtifactUrl,
-                aclEnabled:            !joinSunAither,
-                slurmImageMode:        slurmImageMode,
-                workerCount:           slurmWorkerCount,
-            }, {
-                dependsOn: [nomadServer, ...nomadClients, spotPool],
-            });
-            slurmCtrlIp   = slurmCluster.ctrlIp;
-            slurmWorkerIps = slurmCluster.workerIps;
-        }
-
-        // ── PBS Cluster (optional) ──────────────────────────────────────────
-        let pbsCtrlIp = pulumi.output("");
-        if (pbsEnabled) {
-            const pbsCluster = new PbsCluster(`abc-${stack}-pbs`, {
-                project:              project,
-                zone:                 ZONE,
-                network:              network.id,
-                subnetwork:           privateSubnet.id,
-                nomadServerHostname:  nomadServerHostname,
-                tailscaleKey:         tailscaleKey,
-                enableOsLogin:        enableOsLogin,
-                stack:                stack,
-                nomadVersion:         "1.11.2",
-                pbsDriverArtifactUrl: pbsDriverArtifactUrl,
-                pbsImageMode:         pbsImageMode,
-                aclEnabled:           !joinSunAither,
-                workerCount:          pbsWorkerCount,
-            }, {
-                dependsOn: [nomadServer, ...nomadClients, spotPool],
-            });
-            pbsCtrlIp = pbsCluster.ctrlIp;
-        }
-
         // ── Outputs ─────────────────────────────────────────────────────────
         this.nomadIp          = nomadServer.ip;
         this.clientIps        = nomadClients.map(c => c.ip);
-        this.slurmEnabledOutput = pulumi.output(slurmEnabled);
-        this.slurmCtrlIp      = slurmCtrlIp;
-        this.slurmWorkerIps   = slurmWorkerIps;
-        this.slurmNomadAddr   = slurmCtrlIp.apply((ip) => ip ? `http://${ip}:4646` : "");
-        this.pbsEnabledOutput = pulumi.output(pbsEnabled);
-        this.pbsCtrlIp        = pbsCtrlIp;
-        this.pbsNomadAddr     = pbsCtrlIp.apply((ip) => ip ? `http://${ip}:4646` : "");
 
         this.registerOutputs({
             nomadIp:        this.nomadIp,
             clientIps:      this.clientIps,
-            slurmEnabled:   this.slurmEnabledOutput,
-            slurmCtrlIp:    this.slurmCtrlIp,
-            slurmWorkerIps: this.slurmWorkerIps,
-            slurmNomadAddr: this.slurmNomadAddr,
-            pbsEnabled:     this.pbsEnabledOutput,
-            pbsCtrlIp:      this.pbsCtrlIp,
-            pbsNomadAddr:   this.pbsNomadAddr,
         });
     }
 }
