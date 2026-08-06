@@ -48,3 +48,56 @@ cohort steps TBFULL → TBJOIN → TBAMEND → TBGROUPS).
 not derivable from it**. Our runs request the full field set
 (`../../configs/nextflow.trace.config`); the reference can only supply task
 durations for runtime comparison.
+
+---
+
+## Parallel mode is the campaign default — and it re-frames the correctness claim
+
+All campaign runs use **`--mtbseq_parallel true`**. The publication established
+that parallel and serial modes are equivalent, and parallel mode decomposes
+MTBseq into per-sample steps, so it exercises the executor far harder:
+
+| Mode | Tasks (5 samples) | Processes |
+|---|---|---|
+| serial | 15 | RENAME_FILES, FASTQC ×5 + 4 monolithic cohort steps |
+| **parallel** | **41** | + TBBWA, TBLIST, TBPILE, TBREFINE, TBVARIANTS ×5, then TBSTATS/TBSTRAINS/TBJOIN/TBAMEND/TBGROUPS |
+
+At 90 samples that is ≈455 tasks — a far better basis for placement-latency
+statistics than 15. The correct baseline for our runs is therefore
+`reference-05samples-parallel-digests.tsv` (from `pub-05samples-parallel.zip`).
+
+### The empirical non-determinism envelope (measured, not assumed)
+
+Digesting the published serial and parallel references against each other gives
+the *expected* spread for this pipeline, established independently of anything we
+run. On the joint variant table (`tbjoin/.../samples5.tab`):
+
+| Measure | Value |
+|---|---|
+| rows | 4,899 (identical count in both) |
+| rows differing at all | **11 (0.22 %)** |
+| rows where the **position** differs | **0** |
+| rows where the **variant call** differs | **0** |
+| columns that differ | read-depth / coverage counts only (±1–2 reads) |
+
+Across the whole output set: 19 files bit-identical, 9 differing only in these
+depth counts, 4 present under different paths (serial writes `tbfull/Statistics`
+and `tbfull/Classification`; parallel writes `tbstats/Statistics` and
+`tbstrains/Classification` — same content, different layout).
+
+**Consequence for X1's acceptance criterion.** "Bit-identical outputs" is the
+wrong bar for this pipeline and would fail for reasons unrelated to the
+substrate. State it in three tiers instead:
+
+1. **Bit-identical** — for outputs with no run-stamped or depth-derived fields.
+2. **Identical after declared normalisation** — for files carrying the `Date`
+   stamp (rules in `../../scripts/output_digests.py: RULES`).
+3. **Call-concordant** — for alignment-derived tables, *identical variant
+   positions and calls*, with coverage counts allowed to vary within the
+   envelope above. This is the intrinsic thread non-determinism of parallel
+   alignment/pileup that the experiment plan requires be enumerated rather than
+   waved at; it is a property of BWA/pileup threading, **not** of the executor.
+
+X1 therefore claims **substrate neutrality of the biological result**, evidenced
+by identical calls across arms, with the coverage-count spread reported and
+bounded by the published reference's own serial-vs-parallel spread.
