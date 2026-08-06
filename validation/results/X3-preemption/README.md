@@ -119,3 +119,66 @@ Claiming "the pipeline completed unattended" therefore requires stating the
 retry configuration as part of the result. Run 2 repeats the trials with
 `errorStrategy = 'retry'`, `maxRetries = 3` to measure survival under the
 realistic production configuration.
+
+---
+
+## Results — run 2 (retry enabled) and the combined dataset
+
+Run 2 repeated the trials with the realistic production configuration
+(`errorStrategy = 'retry'`, `maxRetries = 3`):
+
+| Trial | Process | Recovery (s) |
+|---|---|---|
+| 6 | TBBWA | 11.25 |
+| 7 | FASTQC | 20.08 |
+| 8 | TBBWA | 20.10 |
+| 9 | TBREFINE | 14.52 |
+| 10 | TBBWA | 18.98 |
+
+**5/5 recovered, 0 timeouts.** And decisively for layer 2: with retry enabled the
+**pipeline survived every preemption and kept running** — the log shows
+`Execution is retried (1)` → `Re-submitted process` for each killed task, and
+execution continued through TBLIST, TBPILE and TBVARIANTS.
+
+### Combined — this is the number that replaces "47 s"
+
+`S4-preemption.tsv` (both runs, `run_mode` column distinguishes them):
+
+| | Value |
+|---|---|
+| Trials with a live victim | **9** |
+| Recovered | **9 / 9 (100 %)** |
+| Timed out | **0** |
+| **Median recovery** | **15.63 s** |
+| Mean | 15.41 s |
+| Range | 7.92 – 20.10 s |
+| Observations | 7.92, 11.23, 11.25, 14.52, 15.63, 18.95, 18.98, 20.08, 20.10 |
+
+**The manuscript's unverified "median 47 seconds" does not reproduce.** Measured
+median is **15.6 s** — roughly three times faster. The number in §3.3 should be
+replaced with the measured value and the methodology below.
+
+### How to state this in the paper
+
+> Across 9 preemption trials on a 5-sample parallel workflow, every preempted
+> task was rescheduled and restarted, with a **median recovery of 15.6 s**
+> (range 7.9–20.1 s, n=9, no failures to recover). Pipeline-level survival is a
+> separate property: with Nextflow's default error handling the run aborts on the
+> first preemption despite the allocation being recovered, whereas with
+> `errorStrategy = 'retry'` the pipeline re-submitted each preempted task and
+> continued to completion unattended.
+
+### Honest limitations
+
+- **n=9, not 10.** The harness can only preempt a *currently running* task; the
+  workflow's per-sample phase did not sustain a tenth sequential victim. Reported
+  as measured rather than padded.
+- Recovery includes container start. Images were warm on the target node, so
+  these are warm-start figures; a cold image would add the pull.
+- Killing an allocation is a **proxy** for preemption: it exercises the same
+  detect → reschedule → restart path, without a competing workload's scheduling.
+- Single node, single workflow, one cluster. The figure characterises this
+  executor's recovery path, not a general property of Nomad.
+- Trials 1–5 of run 2 and trial 1 of run 1 found no running victim and are
+  recorded as waits, not as failures — they are excluded from the statistics
+  rather than counted as zero-time recoveries.
