@@ -20,17 +20,46 @@
 # on YOUR cluster first (see nextflow-head.vars.example). Nothing secret is baked
 # into this file.
 
-variable "pipeline"       { type = string }
-variable "config_file"    { type = string }
-variable "nextflow_args"  { type = string, default = "" }   # -profile, --input, --outdir, -w ...
-variable "nextflow_image" { type = string, default = "nextflow/nextflow:26.04.3" }
-variable "plugin_version" { type = string, default = "0.5.0-edge3" }
-variable "target_node"    { type = string, default = "" }   # pin to one node for X1; empty = any
-variable "work_volume"    { type = string, default = "nf-work" }
-variable "run_tag"        { type = string, default = "run" }
+variable "pipeline" {
+  type = string
+}
+variable "config_file" {
+  type = string
+}
+variable "nextflow_args" {
+  type    = string
+  default = ""
+}   # -profile, --input, --outdir, -w ...
+variable "nextflow_image" {
+  type    = string
+  default = "nextflow/nextflow:26.04.3"
+}
+variable "plugin_version" {
+  type    = string
+  default = "0.5.0-edge3"
+}
+variable "target_node" {
+  type    = string
+  default = ""
+}   # pin to one node for X1; empty = any
+variable "work_volume" {
+  type    = string
+  default = "nf-work"
+}
+# The scheduler evaluates ZERO nodes if this pool has none — the job then hangs
+# `pending` with no error message. Set it to a pool that actually has nodes.
+variable "node_pool" {
+  type    = string
+  default = "default"
+}
+variable "run_tag" {
+  type    = string
+  default = "run"
+}
 
 job "nextflow-head" {
-  type = "batch"
+  type      = "batch"
+  node_pool = var.node_pool
   meta { run_uuid = uuidv4() }   # force a fresh allocation on every submit
 
   group "head" {
@@ -92,6 +121,8 @@ EOT
 set -euo pipefail
 cd /local
 export NXF_ANSI_LOG=false
+# Nextflow 26.x's strict config parser rejects nf-nomad's closure DSL.
+export NXF_SYNTAX_PARSER=v1
 export NOMAD_ADDR="http://$${attr.unique.network.ip-address}:4646"
 export NOMAD_PLUGIN_VERSION="${var.plugin_version}"
 export RUN_TAG="${var.run_tag}"

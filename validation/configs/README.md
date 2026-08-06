@@ -72,6 +72,42 @@ RUN_TAG=x2-fusion-taxprof  nextflow run nf-core/taxprofiler -c x2-fusion.config 
 RUN_TAG=x2-s5cmd-taxprof   nextflow run nf-core/taxprofiler -c x2-s5cmd.config  -w s3://<bucket>/work-x2-s5cmd-taxprof  -profile test_full,<container> ...
 ```
 
+## Verified working — and the four traps that stop it working
+
+The whole matrix was smoke-tested end to end on **2026-08-06** with
+**nf-nomad 0.5.0-edge3 / Nextflow 26.04.3**, running two reference pipelines
+through the Nomad executor to completion:
+
+| Pipeline | Result | Tasks |
+|---|---|---|
+| `nextflow-io/rnaseq-nf` | exit 0, **54 s** | 4/4 `COMPLETED` |
+| `nf-core/demo` (`-r dev -profile test,docker`) | exit 0, **205 s** | 8/8 `COMPLETED` |
+
+Getting there required four fixes. Each produces a confusing failure, so they are
+worth knowing before you burn a long run:
+
+1. **`NXF_SYNTAX_PARSER=v1` is mandatory.** Nextflow 26.x ships a strict config
+   parser that rejects nf-nomad's Groovy closure DSL outright —
+   ``Error: `type` is not defined`` / ``` `attr` is not defined ``` / ``` `workDir`
+   is not defined ```. The legacy (v1) parser accepts it. Since nf-nomad ≥ 0.4.4
+   *requires* NXF ≥ 26.04.3, you need both the new Nextflow and the old parser.
+2. **Write the closure DSL one call per line.** The command-chain form
+   `volume = { type "host" name "nf-work" path "/work" }` fails with
+   `Unexpected input: 'name'`. Put each call on its own line.
+3. **`privileged = false`.** nf-nomad requests privileged Docker containers by
+   default; most hardened Nomad agents refuse, and every task dies with
+   `Docker privileged mode is disabled on this Nomad agent` — reported by Nextflow
+   as a *task* failure (`status=FAILED`, `exit=0`), which misdirects debugging.
+4. **Set the node pool explicitly** (`nodePool` in the config, `node_pool` in the
+   job HCL). If the pool has no nodes, the scheduler evaluates **zero** nodes and
+   the job sits `pending` forever **with no error message** — the eval carries no
+   constraint text to explain it. `failOnPlacementFailure = true` converts other
+   placement failures into fast errors rather than hangs.
+
+**Endpoint choice:** point `NOMAD_ADDR` at the address the Nomad agent actually
+binds (typically a private/VPN address such as a Tailscale IP), not a public edge
+URL — fewer hops and no proxy in the path.
+
 ## Non-negotiables (handover §4)
 
 - **Traces from run 1** — `nextflow.trace.config` is included everywhere; a run
