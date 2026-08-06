@@ -13,6 +13,11 @@ RUN apt-get update && apt-get install -y curl unzip iproute2 jq ca-certificates 
     mkdir -p /opt/nomad/utils && mv s5cmd /opt/nomad/utils/ && \
     apt-get purge -y unzip && rm -rf /var/lib/apt/lists/*
 
+# Nomad validates host_volume paths at agent start and refuses to boot if they are
+# missing, so both must exist in the image. Discovered the hard way: without this the
+# clients exit(1) with "failed to validate volume scratchdir".
+RUN mkdir -p /tmp/nomad/scratchdir /opt/nomad/shared
+
 EXPOSE 4646 4647 4648 4648/udp
 ENTRYPOINT ["/usr/local/bin/nomad"]
 CMD ["agent", "-config=/etc/nomad/agent.hcl"]

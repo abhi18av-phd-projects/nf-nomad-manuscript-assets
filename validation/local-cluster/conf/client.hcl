@@ -6,9 +6,13 @@ bind_addr = "0.0.0.0"
 server { enabled = false }
 
 client {
-  enabled   = true
-  servers   = ["nomad-server:4647"]
-  node_pool = "dev"
+  enabled = true
+  servers = ["nomad-server:4647"]
+
+  # Deliberately the DEFAULT node pool. Upstream's config uses node_pool = "dev",
+  # which means any job that does not explicitly request that pool fails to place
+  # with "No nodes were eligible for evaluation" — a trap this project has hit
+  # before on ad-hoc jobs. A reviewer's stock pipeline must just work.
 
   # Node-local scratch — private to each client.
   host_volume "scratchdir" {

@@ -36,6 +36,19 @@ This variant separates the roles:
 Everything else is kept deliberately close to upstream so the two do not drift: same Nomad
 version, same ACL bootstrap, same MinIO service, same `s5cmd` binary location.
 
+## Verified 2026-08-06
+
+Brought up and exercised end to end on Docker Desktop 24.0.2, 8 CPU / 16 GB, macOS.
+
+| | |
+|---|---|
+| Cluster | 1 server + 3 clients + MinIO, all `ready` |
+| Placement | a 6-allocation job spread across all three clients |
+| Recovery | **3 trials, median 26 s** (26, 26, 27) — node stopped, 3 allocations displaced, job back to 6/6 on survivors |
+
+`trials.tsv` holds the rows. **n=3 is a smoke test, not a result** — X3 calls for 10 trials
+against the randomised workload, not a fixed-duration sleeper.
+
 ## What each experiment gets
 
 | | |

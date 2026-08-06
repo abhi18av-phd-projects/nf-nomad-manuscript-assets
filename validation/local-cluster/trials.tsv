@@ -1,0 +1,4 @@
+trial	victim	victim_allocs	killed_at	recovered_at	delta_seconds	replacements	outcome
+1	a2ce395cffcb	3	1786002908	1786002935	27	6	RECOVERED
+1	7f1952d2ad35	3	1786003012	1786003038	26	6	RECOVERED
+1	62f90bd0ee83	3	1786003100	1786003126	26	6	RECOVERED
