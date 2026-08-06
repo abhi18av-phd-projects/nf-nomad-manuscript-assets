@@ -1,0 +1,6 @@
+sample,library,fastq_1,fastq_2
+10010-03,lib951,/work/x1/data/fastq/ERR552605_1.fastq.gz,/work/x1/data/fastq/ERR552605_2.fastq.gz
+10011-03,lib914,/work/x1/data/fastq/ERR552259_1.fastq.gz,/work/x1/data/fastq/ERR552259_2.fastq.gz
+10012-03,lib970,/work/x1/data/fastq/ERR552132_1.fastq.gz,/work/x1/data/fastq/ERR552132_2.fastq.gz
+10205-03,lib915,/work/x1/data/fastq/ERR552309_1.fastq.gz,/work/x1/data/fastq/ERR552309_2.fastq.gz
+10206-03,lib916,/work/x1/data/fastq/ERR551398_1.fastq.gz,/work/x1/data/fastq/ERR551398_2.fastq.gz
