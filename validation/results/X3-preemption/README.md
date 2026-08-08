@@ -1,6 +1,8 @@
 # X3 — preemption recovery (the number that replaces the unverified "47 s")
 
-**Status: harness built and safety-verified; trials NOT yet run.**
+**Status: COMPLETE. 9 trials run, 9/9 recovered, median 15.63 s.** The result and
+methodology are below; the header previously said "trials not yet run" and was
+stale from the harness-building commit.
 
 The manuscript currently asserts a median recovery of *47 seconds across 10
 preemption trials*. That number is flagged in the claim-evidence matrix as
