@@ -1,0 +1,26 @@
+plugin	provider	downloads	latestVersion	releases	evidence
+nf-amazon	nextflow-io	773766	3.10.1	107	index description
+nf-google	nextflow-io	67847	1.27.4	76	index description
+nf-k8s	nextflow-io	49886	1.5.5	15	index description
+xpack-amzn	Seqera Labs	35156	2.1.3	24	index description
+nf-azure	nextflow-io	11467	1.23.1	79	index description
+nf-nomad	nextflow-io	5721	0.5.0-edge3	22	index description
+nf-seqera	nextflow-io	3228	1.0.0	17	index description
+xpack-google	Seqera Labs	2334	2.2.1	13	index description
+nf-float	MemVerge Corp.	1698	0.4.8	14	registry provider
+nf-fovus	Fovus Corporation	1279	1.0.13	16	registry provider
+nf-cws	nextflow	1176	2.0.1	9	registry provider
+nf-ga4gh	Oregon Health & Science University (Ellrott Lab)	865	1.5.0	16	index description
+nf-gadi	NCI Australia	308	1.3.1	4	registry provider
+nf-snowflake	Snowflake	295	1.1.1	3	registry provider
+nf-jarvice	nextflow	224	0.7.0	2	registry provider
+nf-slurm-no-memory	CUBIC-Curie	200	1.0.1	2	registry provider
+nf-databricks	seqera	124	0.1.0	1	registry provider
+nf-ospool	University of Wisconsin - Madison	100	0.1.0	1	registry provider
+nf-ignite	Seqera Labs	82	1.2.3	4	registry provider
+nf-oci	Incremental Steps	80	0.0.1	1	registry provider
+nf-tencentcloud	Tencent	55	2.0.1	4	registry provider
+nf-wr	nextflow	51	1.2.0-rc.2	3	registry provider
+xpack-databricks	Seqera Labs	24	0.2.1	2	index description
+yellowdog	yellowdog	13	1.0.1	2	registry provider
+nf-skypilot	seqera	0		0	registry provider
