@@ -123,3 +123,92 @@ Reproduce the comparison:
 
 Acceptance criteria and the normalisation rules are defined in
 `../X1-reference-baseline/README.md`.
+
+---
+
+# X1 at full scale — 90 samples
+
+**Run dates:** arm A 2026-08-07/08, arm B 2026-08-09/10. **Verdict: substrate-neutral,
+and more tightly so than the 5-sample pilot.** Same design as above: two arms, same node,
+same data, same images, same pipeline revision; the execution substrate is the only
+variable. Both arms completed **636/636 tasks with zero failures**.
+
+## Runtime
+
+| | Arm A (local) | Arm B (nf-nomad) |
+|---|---|---|
+| Exit status | 0 | 0 |
+| Tasks | 636 | 636 |
+| Wall-clock | 50,118 s (13.9 h) | **30,938 s (8.6 h)** |
+| Placement latency p50 | 0.09 s | 35.22 s |
+| p95 / p99 / max | 0.09 / 0.10 / 0.10 s | 509.5 / 789.4 / 1082.3 s |
+
+**Two cautions on these numbers, both load-bearing.**
+
+*The 38 % wall-clock difference is not a speed claim.* Arm A ran while the work volume was
+filling toward capacity and arm B ran with substantially more free space, so I/O pressure
+differs between the arms. This is a single paired run with an uncontrolled confound. What
+it supports is the same statement the pilot supported — **no wall-clock penalty from
+orchestration** — not that Nomad is faster.
+
+*The placement percentiles measure something different here than at 5 samples.* At 90
+samples the node is saturated, so `start − submit` is dominated by **queue wait**, not
+scheduling overhead: with `queueSize = 12` and the default `cores` CPU mode reserving four
+exclusive cores per task, tasks legitimately wait for cores to free. The 5-sample p50 of
+4.8 s is the better estimate of orchestration cost. A p95 of 509 s must not be read as
+half an hour of scheduling overhead.
+
+## Correctness
+
+Manifests: `armA90-digests.tsv`, `armB90-digests.tsv` — 1,645 files each.
+
+| Class | Bit-identical | Identical after normalisation | Different |
+|---|---|---|---|
+| **Result tables** (`.tab`/`.fasta`/`.matrix`/`.groups`) | **279** | **2** | **2** |
+| Alignment artefacts (`.bam`/`.bai`/`.grp`/`.bamlog`) | 0 | 0 | 720 |
+| QC reports (FastQC/MultiQC HTML+ZIP) | 1 | 0 | 361 |
+| Other | 276 | 0 | 4 |
+
+**281 of 283 result tables agree**, including every headline output: the `tbjoin` joint
+variant table, `tbstats` statistics, `tbstrains` classification, and the `tbamend`
+phylogeny FASTAs. The two normalised-only cases (`Mapping_and_Variant_Statistics.tab`,
+`Strain_Classification.tab`) differ solely in run-specific stamped fields.
+
+Alignment artefacts and QC reports differing is expected and not a substrate effect:
+parallel alignment does not fix read order, BAM headers embed run-specific provenance, and
+FastQC output embeds timestamps and paths.
+
+### The two differing result tables
+
+**`tbgroups/…_w12_d12.groups` — identical clustering, different labels.** Both arms produce
+**9 groups with identical membership sets** (verified as sets: zero groups unique to
+either arm). Only the arbitrary group numbering differs — the same trio is `group_5` in one
+arm and `group_6` in the other. There is no biological difference here.
+
+**`tbamend/…_amended.tab` — 53 of 23,643 rows (0.22 %).** Critically:
+
+- **0 rows differ in genomic position.**
+- Differences are confined to **columns 12–13**, the same two threshold-sensitive summary
+  columns identified in the 5-sample pilot.
+
+This is the same signature as the pilot and **an order of magnitude smaller**: 0.22 % of
+rows at 90 samples versus 3.55 % at 5 samples, against the published reference's own
+serial-vs-parallel divergence of 3.29 %. The residual is intrinsic non-determinism of
+parallel alignment and pileup, not an effect of the execution substrate.
+
+## Claim this supports
+
+> At 90 samples, executing the pipeline through the Nomad executor rather than Nextflow's
+> local executor leaves the biological result unchanged. Of 283 result tables, 281 agree —
+> 279 bit-identical and two identical once run-specific stamped fields are normalised. Of
+> the remaining two, one differs only in arbitrary cluster labelling with identical group
+> membership, and the other differs in 0.22 % of rows confined to two threshold-sensitive
+> summary columns, with no differences in genomic position. Both arms completed 636 of 636
+> tasks without failure.
+
+## Reproduce
+
+```bash
+../../scripts/output_digests.py --compare armA90-digests.tsv armB90-digests.tsv
+../../scripts/trace_metrics.py armA90/execution_trace-armA90.txt armB90/execution_trace-armB90.txt
+```
