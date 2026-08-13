@@ -2,7 +2,7 @@
 
 Hardware, software and network profile of the environment used for the nf-nomad
 validation campaign. Generated 2026-08-06. Cluster identity is deliberately
-generic (see `../../SANITISE.md`); node roles and sizes are what matter for
+generic; node roles and sizes are what matter for
 reproducibility.
 
 ## Orchestration substrate

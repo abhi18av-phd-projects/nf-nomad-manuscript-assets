@@ -7,16 +7,16 @@ This repository is the companion artefact to the nf-nomad manuscript. It exists 
 reviewer, or anyone else, can go from a bare machine to a running nf-core pipeline on Nomad
 without reconstructing the environment from prose.
 
-> **Status: skeleton.** Structure, licensing and Zenodo metadata are in place. Template
-> sources are being migrated from the working infrastructure tree under sanitisation —
-> see [`SANITISE.md`](SANITISE.md) for exactly what remains.
+> **Status: complete.** Templates, validation configurations, measured results and the reviewer
+> protocol are in place. Cloud credentials are never committed; every template takes them at
+> deploy time.
 
 ## What is here
 
 | Path | Contents |
 |---|---|
 | `templates/local-multipass/` | One laptop, one Nomad server, N client VMs. No cloud account needed. |
-| `templates/cloud-oci-gcp/` | OCI persistent nodes plus a GCP preemptible spot fleet, joined by an overlay network. Demonstrates the heterogeneous-pool and preemption claims. |
+| `templates/cloud-gcp/` | A GCP preemptible spot fleet joined by an overlay network. Demonstrates the heterogeneous-pool and preemption claims. |
 | `validation/configs/` | A `nextflow.config` per work-directory mode — shared POSIX, Fusion, `nf-nomad-s5cmd`. |
 | `validation/chaos/` | Node- and job-level preemption harness for the robustness experiment. |
 | `protocol/` | Step-by-step reviewer protocol, below. |

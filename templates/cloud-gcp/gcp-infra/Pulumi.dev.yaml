@@ -2,7 +2,7 @@ config:
   gcp:project: <YOUR_GCP_PROJECT_ID>
   gcp:region: africa-south1
   gcp-typescript:tailscaleKey:
-    secure: AAABAFEF/C8LZdsTWP3QsQKKJAimMAcQd3/qOzpCGlq4RDuEe1UHMBe1hZQsRALLlbfYWv0D/7H/q8/o0BneY19STp0sfFC7DBidkXUwbf6IXvKrPPtkOMPMhdiO
+    # set with: pulumi config set --secret <key> <value>
   gcp-typescript:enableOsLogin: "false"
   # ── Nomad clients (standalone, not attached to a scheduler cluster) ─────────
   # On-demand clients: fixed pool, node_class = "gcp-ondemand"
@@ -17,6 +17,6 @@ config:
     - "<NOMAD_NODE_TAILNET_IP>"
     - "<NOMAD_NODE_TAILNET_IP>"
   gcp-typescript:autoscalerNomadToken:
-    secure: AAABANXQlZTRl4vKfUYgXSNWoC2IUSDAg5RhH+VtjtJN4U8tt571MURL66Hshj2p4naYF8uU4yC6+5DBoklXM0FXYwM=
+    # set with: pulumi config set --secret <key> <value>
   gcp-typescript:spotPoolNodeToken:
-    secure: AAABAKJQBQu15NsSWaPN80GBr3Io1ZD4eAgGWj5pmG1L72nFEHMp7jogDQN0SiwZ9qkWkNsVBEF8UGgKYp894lMbN4s=
+    # set with: pulumi config set --secret <key> <value>

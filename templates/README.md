@@ -29,14 +29,13 @@ nextflow/nextflow.local.config  work-dir mode configs (local / oci / sun variant
 nextflow/main.nf                smoke-test pipeline
 ```
 
-## `cloud-oci-gcp/` — heterogeneous, preemptible
+## `cloud-gcp/` — heterogeneous, preemptible
 
 Three Pulumi projects that compose into the cloud topology used for the preemption and
 heterogeneous-pool claims.
 
 | Project | Provisions |
 |---|---|
-| `oracle-infra/` | OCI persistent nodes — Nomad server, clients, bastion |
 | `gcp-infra/` | GCP Nomad nodes and the shared-storage / MinIO services |
 | `spot-compute/` | GCP preemptible spot pool and its autoscaler |
 
@@ -51,7 +50,6 @@ NFS-backed shared volume, a MinIO S3 endpoint, a preemptible spot pool, and the 
 | Placeholder | Where |
 |---|---|
 | `<YOUR_GCP_PROJECT_ID>` | `gcp-infra`, `spot-compute` Pulumi configs |
-| `<YOUR_COMPARTMENT_OCID>`, `<YOUR_TENANCY_OCID>` | `oracle-infra/Pulumi.dev.yaml` |
 | `<NOMAD_NODE_TAILNET_IP>` | overlay addresses in configs and cloud-init |
 | `NOMAD_TOKEN` (environment variable) | read at runtime; never write a literal ACL token |
 | `tskey-auth-EPHEMERAL` | set as a Pulumi secret, not in a committed file |

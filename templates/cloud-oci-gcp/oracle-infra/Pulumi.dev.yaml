@@ -1,6 +1,0 @@
-config:
-  oci-typescript:compartmentOcid: ocid1.compartment.oc1..<YOUR_COMPARTMENT_OCID>
-  oci:region: af-johannesburg-1
-  oci:tenancyOcid: ocid1.tenancy.oc1..<YOUR_TENANCY_OCID>
-  oci-typescript:tailscaleKey:
-    secure: AAABADrY8tIHjYXj34s0UMEGsylfsX+RzsMbzOfwMR61ezr3f5Ru6iZsVqBqVlw6pJQWwf6AbGP0nFPCsNWgSlp2m6ficFIJj2kBgxfGYx10wKTEEmxvGVVQ0YztgA==

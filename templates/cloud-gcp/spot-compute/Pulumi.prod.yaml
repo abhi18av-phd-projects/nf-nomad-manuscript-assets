@@ -41,6 +41,6 @@ config:
   #   pulumi config set --secret spot-compute:nomadToken   <aither Nomad ACL token>
 
   spot-compute:nomadToken:
-    secure: AAABAChr2qz1/Y7WavZ+3Zfcx8cVzMWhqjXMDh5wAsizHQphxVA3zEQcEsxY/J0Q/fDpP204MbstGAYz2ZoxefhAxGk=
+    # set with: pulumi config set --secret <key> <value>
   spot-compute:tailscaleKey:
-    secure: AAABAPf504nzy8Syg95xOYg5CXDWSi4DM5aA0qOa/9gb4L6z1W79G5xHcf7yNkwFabYjxBmRF5adEAJJh40Mg3wI68ncpuyLPQiswWl9cOc2MPj7ei9IjLkLJzl+
+    # set with: pulumi config set --secret <key> <value>

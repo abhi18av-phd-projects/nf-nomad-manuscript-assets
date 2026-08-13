@@ -139,44 +139,7 @@ compose cannot. The Multipass template is therefore **not** on the critical path
 
 ---
 
-## `cloud-oci-gcp/oracle-infra/` — OCI persistent tier
-
-Real and complete. Provisions an isolated VCN with a public bastion and a private Nomad tier;
-workers have no public addresses and egress through a NAT gateway.
-
-```mermaid
-graph TB
-    subgraph VCN["OCI VCN — nomad-cluster-&lt;stack&gt;"]
-        subgraph Pub["Public subnet"]
-            B["Bastion<br/>public IP · SSH jump"]
-            IGW{{"Internet Gateway"}}
-        end
-        subgraph Priv["Private subnet — no public IPs"]
-            NS["Nomad server<br/>:4646 HTTP · :4647 RPC"]
-            NC1["Nomad client 0"]
-            NC2["Nomad client 1<br/><i>…N, via nomadClientCount</i>"]
-        end
-        NAT{{"NAT Gateway<br/>egress only"}}
-        SGW{{"Service Gateway<br/>OCI services"}}
-    end
-    Op(["Operator"]) -->|SSH| B
-    B -->|provision over SSH| NS
-    B -->|provision over SSH| NC1
-    B -->|provision over SSH| NC2
-    NC1 -->|register| NS
-    NC2 -->|register| NS
-    Priv --> NAT --> IGW
-    Priv --> SGW
-    style Pub fill:#e1f5ff,stroke:#0066cc
-    style Priv fill:#fff4e1,stroke:#cc8800
-```
-
-Security lists restrict the private subnet to `10.0.1.0/24` on SSH, 4646 and 8080. Client count
-is `nomadClientCount` (default 2).
-
----
-
-## `cloud-oci-gcp/gcp-infra/` — GCP tier with an overlay-joined spot pool
+## `cloud-gcp/gcp-infra/` — GCP tier with an overlay-joined spot pool
 
 Provisions its own VPC, a Nomad server and clients, and a preemptible spot pool. Nodes join a
 Tailscale mesh, which is what allows this tier to share one Nomad cluster with nodes elsewhere.
@@ -218,7 +181,7 @@ backends; Fusion needs neither, only network reach to an object store.
 
 ---
 
-## `cloud-oci-gcp/spot-compute/` — elastic capacity for an existing cluster
+## `cloud-gcp/spot-compute/` — elastic capacity for an existing cluster
 
 Standalone, and distinct from `gcp-infra`: it adds spot capacity to a cluster that already
 exists rather than creating one. Isolated Pulumi state, no shared resources.
