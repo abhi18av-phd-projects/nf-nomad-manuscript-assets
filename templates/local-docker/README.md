@@ -20,6 +20,41 @@ needs an S3 endpoint.
 **Architecture diagram:** [`../../templates/ARCHITECTURE.md`](../../templates/ARCHITECTURE.md)
 shows the topology and traces one reallocation trial.
 
+
+```mermaid
+graph TB
+    Op(["./scripts/start.sh"])
+    subgraph Host["One machine — Docker only"]
+        S["<b>nomad-server</b><br/>schedules only<br/>client { enabled = false }<br/>:4646"]
+        C1["nomad-client-1"]
+        C2["nomad-client-2"]
+        C3["nomad-client-3<br/><i>CLIENTS=N to scale</i>"]
+        SV[("shared volume<br/><i>NFS stand-in</i>")]
+        M["<b>minio</b><br/>S3 endpoint<br/><i>WITH_STORAGE=1</i>"]
+    end
+    Op --> S
+    C1 -->|register| S
+    C2 -->|register| S
+    C3 -->|register| S
+    C1 -.-> SV
+    C2 -.-> SV
+    C3 -.-> SV
+    M -.->|"object-store modes only"| C1
+    Chaos(["./scripts/chaos.sh"]) ==>|"stop a busy client"| C2
+    C2 ==>|"allocations displaced"| S
+    S ==>|"reschedule"| C1
+    S ==> C3
+    style S fill:#e1f5ff,stroke:#0066cc,stroke-width:2px
+    style C2 fill:#fdecea,stroke:#c62828,stroke-width:2px
+    style M fill:#f3f3f1,stroke:#9e9e9e,stroke-dasharray: 4 3
+    style SV fill:#e8f5e9,stroke:#2e7d32
+    style Chaos fill:#fdecea,stroke:#c62828
+```
+
+**Figure. The local cluster and one reallocation trial.** The server schedules but runs nothing,
+so stopping a client exercises rescheduling rather than killing the cluster. Clients are replicas
+of one image, scaled with `CLIENTS=N`. MinIO is opt-in because the scheduling tests stage no data.
+
 ## Why Docker rather than Multipass
 
 The nf-nomad project already tests against a **containerised Nomad** in its own CI
