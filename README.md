@@ -61,3 +61,17 @@ itself. See [`CITATION.cff`](CITATION.cff).
 - Upstream `validation/` in the nf-nomad repository holds the per-feature configuration
   suite (constraints, directives, secrets, spread, volumes) that this repository does not
   duplicate.
+
+## Getting started
+
+Follow the protocol in order. It takes you from a bare machine to the measurements the
+manuscript reports.
+
+| Step | Document | What it covers |
+|---|---|---|
+| 1 | [`protocol/01-provision.md`](protocol/01-provision.md) | bring up a cluster, either Docker Compose on one machine or a preemptible GCP fleet |
+| 2 | [`protocol/02-run-pipeline.md`](protocol/02-run-pipeline.md) | run each experiment and collect its measurements |
+| 3 | [`protocol/03-expected-output.md`](protocol/03-expected-output.md) | what a correct run produces, with the reference numbers to compare against |
+
+Architecture diagrams for both templates are in
+[`templates/ARCHITECTURE.md`](templates/ARCHITECTURE.md).
