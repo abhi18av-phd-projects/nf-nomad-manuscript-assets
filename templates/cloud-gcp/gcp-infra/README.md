@@ -1,12 +1,11 @@
-# `gcp-infra` — a Nomad cluster on GCP with a preemptible spot pool
+# `gcp-infra`, a Nomad cluster on GCP with a preemptible spot pool
 
 Provisions a self-contained Nomad cluster on Google Cloud Platform: one persistent server, a
 fixed pool of on-demand clients, and a preemptible spot pool that GCP may reclaim at any time.
 Nodes join a Tailscale mesh, which is what lets the same cluster span this tier and hardware
 elsewhere.
 
-This is the template the resilience result is measured on. Preemption here is not simulated —
-GCP reclaims spot instances on its own schedule, and the executor has to cope.
+This is the template the resilience result is measured on. Preemption here is not simulated, GCP reclaims spot instances on its own schedule, and the executor has to cope.
 
 ```mermaid
 graph TB
@@ -49,7 +48,7 @@ graph TB
     style GCP fill:#fdecea,stroke:#c62828
 ```
 
-**Figure. The GCP tier.** The server is persistent and the spot pool is not. When GCP reclaims a
+Figure. The GCP tier. The server is persistent and the spot pool is not. When GCP reclaims a
 spot instance the allocations on it are lost, the scheduler places them on surviving nodes, and
 the pipeline continues. MinIO and the NFS volume are the two work-directory backends; Fusion
 needs neither, only network reach to an object store.

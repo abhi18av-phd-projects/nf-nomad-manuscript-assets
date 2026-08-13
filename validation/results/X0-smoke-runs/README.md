@@ -1,12 +1,12 @@
-# X0 smoke runs — execution metadata
+# X0 smoke runs, execution metadata
 
 Raw Nextflow execution metadata from the X0 toolchain-verification runs
-(2026-08-06). These are **not** the manuscript's headline results — they verify
+(2026-08-06). These are not the manuscript's headline results, they verify
 that the executor, configs and reporting chain work end to end, and they are the
 worked example of how the runtime numbers in the paper are derived.
 
-Environment: `../S1-environment-profile.md`. Software: nf-nomad **0.5.0-edge3**,
-Nextflow **26.04.3**, Docker task driver, single execution node.
+Environment: `../S1-environment-profile.md`. Software: nf-nomad 0.5.0-edge3,
+Nextflow 26.04.3, Docker task driver, single execution node.
 Node hostnames in the HTML reports are replaced with a generic label
 (`exec-node-01`); hardware fields (CPU model, core counts) are unmodified.
 
@@ -21,8 +21,8 @@ Node hostnames in the HTML reports are replaced with a generic label
 
 Per run: `execution_trace-<tag>.txt` (per-task TSV), `execution_report-<tag>.html`,
 `execution_timeline-<tag>.html`. `t-demo/nf-core-results/` additionally carries
-nf-core's own provenance — resolved software versions and the run's parameter
-snapshot — which is what a methods section should cite for tool versions.
+nf-core's own provenance, resolved software versions and the run's parameter
+snapshot, which is what a methods section should cite for tool versions.
 
 ## Derived metrics
 
@@ -35,21 +35,21 @@ snapshot — which is what a methods section should cite for tool versions.
 | `t-rnaseq2` | 4 | 34.76 | 5.24 | 9.98 | 9.98 |
 | `t-strict` | 4 | 27.98 | 5.33 | 6.18 | 6.18 |
 
-**Placement latency = `start − submit`** from the trace — the interval between
+Placement latency = `start − submit` from the trace, the interval between
 Nextflow submitting a task and the orchestrator starting it. This is the X4
 measurement, and it needs no separate compute run: it is already in every trace.
 
 ## Read this before quoting any of these numbers
 
-**Container image caching dominates the distribution.** `t-demo` ran first, with
+Container image caching dominates the distribution. `t-demo` ran first, with
 cold images, and its tail (77.9 s) is image pull, not scheduling. The later runs,
 on warm images, sit at **p50 ≈ 3–5 s**. So:
 
 - Placement latency reported as a property of *the executor* must come from runs
-  with **pre-pulled/warm images**, with that stated explicitly.
+  with pre-pulled/warm images, with that stated explicitly.
 - A cold-image number is still worth reporting, but as a *first-run* cost, and
   labelled as such.
 
-These are also **4–8-task toy pipelines on a single node**; they characterise the
+These are also 4–8-task toy pipelines on a single node; they characterise the
 submit→start path, not throughput or scaling. The manuscript's runtime and
 latency claims come from the X1/X2 runs on real pipelines, not from these.

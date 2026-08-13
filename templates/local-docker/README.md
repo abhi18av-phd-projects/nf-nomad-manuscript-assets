@@ -1,4 +1,4 @@
-# Local Nomad cluster — the reviewer artefact
+# Local Nomad cluster, the reviewer artefact
 
 One command brings up a multi-node Nomad cluster with an S3 endpoint, on any machine with
 Docker. No cloud account, no VM layer, no credentials.
@@ -12,12 +12,11 @@ WITH_STORAGE=1 ./scripts/start.sh   # adds MinIO, only needed for the s5cmd mode
 CLIENTS=5 ./scripts/start.sh        # more nodes
 ```
 
-**No object store by default.** The cluster-level test is scheduling and reallocation —
-nothing stages data — so MinIO sits behind a compose profile and the default cluster is
+No object store by default. The cluster-level test is scheduling and reallocation, nothing stages data, so MinIO sits behind a compose profile and the default cluster is
 four containers rather than five. It is opt-in for X2, where the s5cmd work-dir mode
 needs an S3 endpoint.
 
-**Architecture diagram:** [`../../templates/ARCHITECTURE.md`](../../templates/ARCHITECTURE.md)
+Architecture diagram: [`../../templates/ARCHITECTURE.md`](../../templates/ARCHITECTURE.md)
 shows the topology and traces one reallocation trial.
 
 
@@ -51,13 +50,13 @@ graph TB
     style Chaos fill:#fdecea,stroke:#c62828
 ```
 
-**Figure. The local cluster and one reallocation trial.** The server schedules but runs nothing,
+Figure. The local cluster and one reallocation trial. The server schedules but runs nothing,
 so stopping a client exercises rescheduling rather than killing the cluster. Clients are replicas
 of one image, scaled with `CLIENTS=N`. MinIO is opt-in because the scheduling tests stage no data.
 
 ## Why Docker rather than Multipass
 
-The nf-nomad project already tests against a **containerised Nomad** in its own CI
+The nf-nomad project already tests against a containerised Nomad in its own CI
 (`docker/` upstream), and that approach is strictly better for a reviewer than the
 Multipass/Pulumi route: no hypervisor, no VM images, no provider plugin, and it works
 identically on macOS, Linux and Windows. This directory is a **minimal, multi-node
@@ -65,9 +64,9 @@ derivative** of that upstream setup.
 
 ## What it adds over upstream
 
-Upstream's compose file runs a **single agent that is both server and client**
+Upstream's compose file runs a single agent that is both server and client
 (`bootstrap_expect = 1`, `name = "client_dev"`). That is sufficient for functional tests but
-**cannot demonstrate rescheduling**, because there is no second node to reschedule onto.
+cannot demonstrate rescheduling, because there is no second node to reschedule onto.
 
 This variant separates the roles:
 
@@ -92,7 +91,7 @@ Brought up and exercised end to end on Docker Desktop 24.0.2, 8 CPU / 16 GB, mac
 | Recovery | **4 trials, median 26 s** (24, 26, 26, 27) — node stopped, allocations displaced, job back to 6/6 on survivors |
 | Storage-free | the last trial ran on a cluster with **no object store at all**, confirming reallocation needs only the scheduler |
 
-`trials.tsv` holds the rows. **n=3 is a smoke test, not a result** — X3 calls for 10 trials
+`trials.tsv` holds the rows. n=3 is a smoke test, not a result, X3 calls for 10 trials
 against the randomised workload, not a fixed-duration sleeper.
 
 ## What each experiment gets

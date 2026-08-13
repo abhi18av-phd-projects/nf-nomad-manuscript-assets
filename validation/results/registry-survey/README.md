@@ -1,14 +1,14 @@
-# Registry survey — executor plugins in the Nextflow plugin registry
+# Registry survey, executor plugins in the Nextflow plugin registry
 
-**Retrieved:** 2026-08-09 · **Source:** `https://registry.nextflow.io/api/v1/plugins?size=500`
+Retrieved: 2026-08-09 · Source: `https://registry.nextflow.io/api/v1/plugins?size=500`
 (plus `/api/v1/plugins/<id>` per plugin for provider and description).
 
-**Official plugin index only.** The registry object also carries a `downloadGhCount`
+Official plugin index only. The registry object also carries a `downloadGhCount`
 field recording downloads from the legacy GitHub distribution path. It is **excluded
 from every figure here**, deliberately: the two counters measure different eras and
 different distribution channels, their ratio varies by an order of magnitude with
 plugin age, and mixing them would make the numbers uninterpretable. Only
-`downloadCount` — the registry's own counter — is used.
+`downloadCount`, the registry's own counter, is used.
 
 ## Contents
 
@@ -20,18 +20,18 @@ plugin age, and mixing them would make the numbers uninterpretable. Only
 ## Method
 
 1. Enumerate every plugin in the index (`?size=500`; the default page size is 20, which
-   silently truncates at `nf-command-archiver` — a trap worth noting for anyone
+   silently truncates at `nf-command-archiver`, a trap worth noting for anyone
    reproducing this).
 2. Fetch each plugin's detail record for `provider` and per-release `description`.
 3. Classify as an executor on two tiers of evidence, kept separate rather than merged:
-   - **Tier A — index description.** The plugin's own registry description states that it
+   - **Tier A, index description.** The plugin's own registry description states that it
      provides or extends a Nextflow executor. 10 plugins.
-   - **Tier B — registry provider.** No description is published, but the index's
+   - **Tier B, registry provider.** No description is published, but the index's
      `provider` field attributes the plugin to a compute-platform vendor and the plugin
      name denotes that platform. 15 plugins. Weaker evidence; reported separately and
      never silently pooled with Tier A.
 
-Three plugins matching the string *executor* were **excluded** as false positives:
+Three plugins matching the string *executor* were excluded as false positives:
 `nf-wave`, `nf-cgroup-metrics` and `nf-llm-debugger` mention it only inside example
 configuration or captured log output, not as a capability they provide.
 
@@ -68,16 +68,15 @@ and the presence or absence of a target platform, not the ratio between any two 
 
 ## What the survey shows
 
-Traditional HPC schedulers are absent from the registry **by construction** — SLURM,
+Traditional HPC schedulers are absent from the registry by construction, SLURM,
 PBS Pro, LSF, SGE, HTCondor and Moab are implemented in the Nextflow distribution
 itself, not as plugins. What the registry records is therefore the set of *newer*
 execution targets, and that population is dominated by managed cloud batch services
 (AWS, Google, Azure, Databricks, Snowflake, Tencent) and vendor compute clouds
-(MemVerge, Fovus, Nimbix, YellowDog). Only site-specific scheduler variants appear —
-`nf-gadi` (NCI Australia's PBS), `nf-slurm-no-memory`, `nf-ospool` (an HTCondor pool).
+(MemVerge, Fovus, Nimbix, YellowDog). Only site-specific scheduler variants appear, `nf-gadi` (NCI Australia's PBS), `nf-slurm-no-memory`, `nf-ospool` (an HTCondor pool).
 
 Against that distribution, Kubernetes (`nf-k8s`) and Nomad (`nf-nomad`) are the only
-two executor targets that are general-purpose, self-hostable orchestrators — neither a
+two executor targets that are general-purpose, self-hostable orchestrators, neither a
 managed cloud batch service nor a site-specific HPC scheduler.
 
 ## Reproduce

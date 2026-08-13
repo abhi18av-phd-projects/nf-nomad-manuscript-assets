@@ -1,77 +1,65 @@
 # nf-nomad manuscript assets
 
-Deployment templates, validation configurations and a reviewer protocol for **nf-nomad**, the Nextflow
-executor plugin for HashiCorp Nomad.
+Deployment templates, validation configurations, measured results and a reviewer protocol for
+nf-nomad, the Nextflow executor plugin for HashiCorp Nomad. This is the companion artefact to
+the nf-nomad manuscript, and it exists so the numbers in that paper can be checked by running
+them again.
 
-This repository is the companion artefact to the nf-nomad manuscript. It exists so that a
-reviewer, or anyone else, can go from a bare machine to a running nf-core pipeline on Nomad
-without reconstructing the environment from prose.
+## Start here
 
-> **Status: complete.** Templates, validation configurations, measured results and the reviewer
-> protocol are in place. Cloud credentials are never committed; every template takes them at
-> deploy time.
+Three documents, in order. They take you from a bare machine to the measurements the manuscript
+reports.
+
+| | | |
+|---|---|---|
+| 1 | [Provision](protocol/01-provision.md) | bring up a cluster, either in containers on one machine or as a preemptible cloud fleet |
+| 2 | [Run](protocol/02-run-pipeline.md) | run each experiment and collect its measurements |
+| 3 | [Verify](protocol/03-expected-output.md) | what a correct run produces, with the reference numbers to compare against |
+
+The local template is the intended starting point. It needs no cloud account, and it is also the
+CI environment for the plugin itself.
 
 ## What is here
 
 | Path | Contents |
 |---|---|
-| `templates/local-docker/` | One machine, one Nomad server and N clients in containers. Docker is the only prerequisite. |
-| `templates/cloud-gcp/` | A GCP preemptible spot fleet joined by an overlay network. Demonstrates the heterogeneous-pool and preemption claims. |
-| `validation/configs/` | A `nextflow.config` per work-directory mode — shared POSIX, Fusion, `nf-nomad-s5cmd`. |
-| `validation/chaos/` | Node- and job-level preemption harness for the robustness experiment. |
-| `protocol/` | Step-by-step reviewer protocol, below. |
+| `templates/local-docker/` | One Nomad server and N clients as containers on a single machine. Docker is the only prerequisite. |
+| `templates/cloud-gcp/` | A GCP preemptible spot fleet joined over an overlay network. This is where the preemption result is measured. |
+| `templates/ARCHITECTURE.md` | Diagrams of what each template provisions. |
+| `validation/configs/` | One Nextflow config per work-directory mode: shared POSIX, Fusion, nf-nomad-s5cmd. |
+| `validation/pipelines/` | The synthetic workload used for preemption trials. |
+| `validation/results/` | The measured datasets behind the manuscript, one directory per experiment. |
+| `validation/scripts/` | Digest comparison, trace metrics, preemption timing. |
+| `protocol/` | The three documents above. |
 
-## The reviewer protocol
+## Scope
 
-Three steps, each with an expected result you can check.
+These templates provision evaluation environments. They are not a production deployment system,
+and they omit the multi-tenant policy, admission-control and audit layers a shared institutional
+cluster needs.
 
-1. **[Provision](protocol/01-provision.md)** — bring up a cluster from one template.
-2. **[Run](protocol/02-run-pipeline.md)** — execute one nf-core pipeline against it.
-3. **[Verify](protocol/03-expected-output.md)** — compare what you got against what we got.
+## Credentials
 
-The local template is the intended starting point: it needs no cloud credentials, and it is
-also the CI environment for the plugin itself.
+Templates take their secrets at deploy time, from the environment or from `pulumi config set
+--secret`. Committed configuration files carry placeholders. Runtime tokens written by the local
+cluster are gitignored.
 
-## What this is not
+The published tree is clean, but earlier commits in this repository's history contained
+credentials that have since been removed and rotated. Treat the history accordingly rather than
+mining it for working values.
 
-These templates provision **evaluation and validation environments**. They are not a
-production deployment system, and they deliberately omit the multi-tenant policy,
-admission-control and audit layers that a shared institutional cluster needs. Those live
-in a separate platform codebase and are out of scope here.
+If you find something that looks like a live credential, please open an issue rather than a pull
+request.
 
-## Security
+## Citing and licence
 
-Nothing in this repository contains credentials, keys, state, or tenancy identifiers.
-The `.gitignore` blocks them by pattern, and every file was reviewed before inclusion.
-Where a template needs a secret, it reads it from the environment or a Pulumi config
-value, and the committed example shows a placeholder.
-
-If you find anything that looks like a real credential, please open an issue rather
-than a pull request.
-
-## Citing
-
-This repository is archived on Zenodo and released under Apache-2.0, matching nf-nomad
-itself. See [`CITATION.cff`](CITATION.cff).
+Archived on Zenodo, released under Apache-2.0 to match nf-nomad itself. See
+[`CITATION.cff`](CITATION.cff).
 
 ## Related
 
-- **nf-nomad** — <https://github.com/nextflow-io/nf-nomad>
-- **nf-nomad-s5cmd** — the S3 work-directory provider
-- Upstream `validation/` in the nf-nomad repository holds the per-feature configuration
-  suite (constraints, directives, secrets, spread, volumes) that this repository does not
-  duplicate.
-
-## Getting started
-
-Follow the protocol in order. It takes you from a bare machine to the measurements the
-manuscript reports.
-
-| Step | Document | What it covers |
-|---|---|---|
-| 1 | [`protocol/01-provision.md`](protocol/01-provision.md) | bring up a cluster, either Docker Compose on one machine or a preemptible GCP fleet |
-| 2 | [`protocol/02-run-pipeline.md`](protocol/02-run-pipeline.md) | run each experiment and collect its measurements |
-| 3 | [`protocol/03-expected-output.md`](protocol/03-expected-output.md) | what a correct run produces, with the reference numbers to compare against |
-
-Architecture diagrams for both templates are in
-[`templates/ARCHITECTURE.md`](templates/ARCHITECTURE.md).
+- nf-nomad — <https://github.com/nextflow-io/nf-nomad>
+- nf-nomad-s5cmd, the S3 work-directory provider
+- The upstream `validation/` directory in the nf-nomad repository holds the per-feature
+  configuration suite (constraints, directives, secrets, spread, volumes), which this repository
+  does not duplicate.

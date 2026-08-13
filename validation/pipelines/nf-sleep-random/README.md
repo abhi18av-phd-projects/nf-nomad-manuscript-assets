@@ -23,8 +23,8 @@ cd ../../templates/local-docker && TRIALS=10 ./scripts/chaos.sh
 | `--randomize` | true | `false` gives a uniform-duration control arm |
 
 Each task writes its planned and actual duration plus its allocation ID, so a completed run
-also records **which node ran what** — enough to confirm that rescheduled tasks moved.
+also records which node ran what, enough to confirm that rescheduled tasks moved.
 
-**Scope.** This measures how the substrate recovers, not whether a pipeline computes the right
+Scope. This measures how the substrate recovers, not whether a pipeline computes the right
 answer. Correctness is X1's job, on real pipelines and real data. Say so in S4, or a reviewer
 may read a synthetic workload as a biological result.

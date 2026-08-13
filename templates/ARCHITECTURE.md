@@ -3,15 +3,15 @@
 Diagrams of what each template actually provisions, drawn from the code in this repository
 rather than from the manuscript text. Where the two disagree, the disagreement is noted.
 
-The repository ships two templates. **`local-docker/`** is the reviewer path, a Docker Compose
-cluster that needs nothing but Docker. **`cloud-gcp/`** shows the same plugin against preemptible
+The repository ships two templates. `local-docker/` is the reviewer path, a Docker Compose
+cluster that needs nothing but Docker. `cloud-gcp/` shows the same plugin against preemptible
 cloud capacity, which is what the resilience claim is measured on.
 
 ---
 
-## `local-docker/` — the reviewer artefact ★
+## `local-docker/`, the reviewer artefact ★
 
-**Start here.** One machine, Docker only, no cloud account and no credentials. This is the
+Start here. One machine, Docker only, no cloud account and no credentials. This is the
 path a reviewer takes, and it is the only template verified end to end (2026-08-06).
 
 ```mermaid
@@ -51,14 +51,14 @@ graph TB
     style Chaos fill:#fdecea,stroke:#c62828
 ```
 
-**Figure. The local cluster and a reallocation trial.** The server schedules but runs nothing
+Figure. The local cluster and a reallocation trial. The server schedules but runs nothing
 (`client { enabled = false }`), so stopping a client exercises rescheduling rather than
 decapitating the cluster. Clients are replicas of one image, scaled with `CLIENTS=N`; each
 registers to the server and mounts a shared Docker volume that stands in for NFS, which is what
 makes the shared-POSIX work-dir mode demonstrable locally. Mode numbering follows Figure 1 of
-the manuscript: 1 = shared POSIX FS, 2 = Fusion + Wave, 3 = `nf-nomad-s5cmd`. **MinIO is opt-in**
+the manuscript: 1 = shared POSIX FS, 2 = Fusion + Wave, 3 = `nf-nomad-s5cmd`. MinIO is opt-in
 (`profile: storage`) because it serves mode 3 only, and because the reallocation test is pure
-scheduling — nothing stages data — so the default cluster is four containers. The heavy arrows trace one `chaos.sh` trial: stop a busy
+scheduling, nothing stages data, so the default cluster is four containers. The heavy arrows trace one `chaos.sh` trial: stop a busy
 client, its allocations are displaced, the scheduler places them on the survivors, and recovery
 is timed from the stop to the job regaining its desired count.
 
@@ -75,7 +75,7 @@ do not drift.
 
 ---
 
-## `cloud-gcp/gcp-infra/` — GCP tier with an overlay-joined spot pool
+## `cloud-gcp/gcp-infra/`, GCP tier with an overlay-joined spot pool
 
 Provisions its own VPC, a Nomad server and clients, and a preemptible spot pool. Nodes join a
 Tailscale mesh, which is what allows this tier to share one Nomad cluster with nodes elsewhere.
@@ -111,13 +111,13 @@ graph TB
     style NFS fill:#e8f5e9,stroke:#2e7d32
 ```
 
-The spot pool is where **X3 preemption trials** run: instances are reclaimed by GCP, and the
+The spot pool is where X3 preemption trials run: instances are reclaimed by GCP, and the
 executor must reschedule the affected tasks. MinIO and the NFS volume are the two work-directory
 backends; Fusion needs neither, only network reach to an object store.
 
 ---
 
-## `cloud-gcp/spot-compute/` — elastic capacity for an existing cluster
+## `cloud-gcp/spot-compute/`, elastic capacity for an existing cluster
 
 Standalone, and distinct from `gcp-infra`: it adds spot capacity to a cluster that already
 exists rather than creating one. Isolated Pulumi state, no shared resources.
@@ -143,7 +143,7 @@ graph LR
 ```
 
 The autoscaler reads Nomad's APM over the overlay and resizes the MIG. The instances are SPOT,
-so preemption is expected behaviour rather than a fault — which is what makes this the right
+so preemption is expected behaviour rather than a fault, which is what makes this the right
 substrate for the resilience claim.
 
 ---
