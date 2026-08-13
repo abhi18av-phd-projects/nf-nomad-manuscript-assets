@@ -54,13 +54,12 @@ Figure. The local cluster and one reallocation trial. The server schedules but r
 so stopping a client exercises rescheduling rather than killing the cluster. Clients are replicas
 of one image, scaled with `CLIENTS=N`. MinIO is opt-in because the scheduling tests stage no data.
 
-## Why Docker rather than Multipass
+## Why containers
 
 The nf-nomad project already tests against a containerised Nomad in its own CI
-(`docker/` upstream), and that approach is strictly better for a reviewer than the
-Multipass/Pulumi route: no hypervisor, no VM images, no provider plugin, and it works
-identically on macOS, Linux and Windows. This directory is a **minimal, multi-node
-derivative** of that upstream setup.
+(`docker/` upstream). For a reviewer that is the lowest-friction route: no hypervisor,
+no VM images, no cloud provider, and it behaves identically on macOS, Linux and Windows.
+This directory is a minimal, multi-node derivative of that upstream setup.
 
 ## What it adds over upstream
 

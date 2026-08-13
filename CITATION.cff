@@ -6,9 +6,9 @@ license: Apache-2.0
 repository-code: "https://github.com/abhi18av-phd-projects/nf-nomad-manuscript-assets"
 abstract: >-
   Reproducible infrastructure templates and a reviewer protocol for nf-nomad, the Nextflow
-  executor plugin for HashiCorp Nomad. Provides a single-laptop Multipass deployment and a
-  heterogeneous cloud deployment spanning OCI persistent nodes and GCP preemptible instances,
-  together with per-mode Nextflow configurations and a preemption-resilience harness.
+  executor plugin for HashiCorp Nomad. Provides a containerised multi-node deployment that runs
+  on a single machine, a preemptible Google Cloud deployment, per-mode Nextflow configurations,
+  a preemption-resilience harness, and the measured datasets behind the manuscript's results.
 keywords:
   - Nextflow
   - HashiCorp Nomad
@@ -20,4 +20,7 @@ authors:
   - given-names: Abhinav
     family-names: Sharma
     orcid: "https://orcid.org/0000-0002-6402-6993"
+  - given-names: Jorge
+    family-names: Aguilera
+    orcid: "https://orcid.org/0009-0005-5537-7029"
 # TODO: complete the author list to match the manuscript submission (7 authors).
