@@ -15,7 +15,7 @@ without reconstructing the environment from prose.
 
 | Path | Contents |
 |---|---|
-| `templates/local-multipass/` | One laptop, one Nomad server, N client VMs. No cloud account needed. |
+| `templates/local-docker/` | One machine, one Nomad server and N clients in containers. Docker is the only prerequisite. |
 | `templates/cloud-gcp/` | A GCP preemptible spot fleet joined by an overlay network. Demonstrates the heterogeneous-pool and preemption claims. |
 | `validation/configs/` | A `nextflow.config` per work-directory mode — shared POSIX, Fusion, `nf-nomad-s5cmd`. |
 | `validation/chaos/` | Node- and job-level preemption harness for the robustness experiment. |

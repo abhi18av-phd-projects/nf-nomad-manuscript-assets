@@ -1,33 +1,13 @@
 # Templates
 
 > **Looking for the reviewer path?** It is not here — it is
-> [`../validation/local-cluster/`](../validation/local-cluster/), a Docker-only cluster that
-> needs no cloud account. These templates document the at-scale topology used for validation.
 
 **See [`ARCHITECTURE.md`](ARCHITECTURE.md)** for a diagram of what each template provisions,
 and for a documented gap between the manuscript's §3.1 local-template claim and the code.
 
-Two deployment templates, both sanitised for publication. Every site-specific value is a
+Two deployment templates, both sanitised for publication. `local-docker/` runs a multi-node
+cluster in containers on one machine; `cloud-gcp/` provisions a preemptible fleet. Every site-specific value is a
 placeholder in angle brackets — substitute before deploying.
-
-## `local-multipass/` — ⚠ incomplete
-
-**This does not currently provision a Nomad cluster.** `setup.sh` is an unrendered copier
-template that launches one general-purpose VM; `start_nomad.sh` runs `nomad agent -dev` on the
-host; `local_nomadlab.hcl` hard-codes an absolute path and enables privileged Docker. The
-manuscript describes a Pulumi + Multipass 1-server + N-client cluster; that project **does exist**
-(`pulumi-provider-multipass`) but lives in a separate private repository and was not migrated here.
-A reviewer following the Zenodo DOI must not need private access, so migrating it is X0 in the
-experiment plan. See [`ARCHITECTURE.md`](ARCHITECTURE.md).
-
-```
-setup.sh                        provision the VMs
-cloud-init/data-science.yml     VM image definition
-nomad/local_nomadlab.hcl        Nomad agent configuration
-nomad/start_nomad.sh            bring the cluster up
-nextflow/nextflow.local.config  work-dir mode configs (local / oci / sun variants)
-nextflow/main.nf                smoke-test pipeline
-```
 
 ## `cloud-gcp/` — heterogeneous, preemptible
 

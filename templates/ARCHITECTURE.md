@@ -3,12 +3,13 @@
 Diagrams of what each template actually provisions, drawn from the code in this repository
 rather than from the manuscript text. Where the two disagree, the disagreement is noted.
 
-The **local cluster** is the reviewer path and the only template verified end to end. The cloud
-templates document how the at-scale validation was run; the Multipass template is superseded.
+The repository ships two templates. **`local-docker/`** is the reviewer path, a Docker Compose
+cluster that needs nothing but Docker. **`cloud-gcp/`** shows the same plugin against preemptible
+cloud capacity, which is what the resilience claim is measured on.
 
 ---
 
-## `validation/local-cluster/` — the reviewer artefact ★
+## `local-docker/` — the reviewer artefact ★
 
 **Start here.** One machine, Docker only, no cloud account and no credentials. This is the
 path a reviewer takes, and it is the only template verified end to end (2026-08-06).
@@ -71,71 +72,6 @@ Compared with upstream's `docker/`, which runs a **single agent that is both ser
 client** and therefore cannot reschedule anything at all, the only structural change here is
 splitting those roles. Nomad version, ACL flow and `s5cmd` path are kept identical so the two
 do not drift.
-
----
-
-## ⚠ `local-multipass/` — superseded, and incomplete
-
-**Read this before reviewing the local template.** The manuscript (§3.1, Supplementary S1)
-describes *"a Pulumi + Multipass project [that] provisions a 1-server + N-client Nomad cluster
-on a single laptop (≥16 GB RAM) in under 30 minutes"*.
-
-**That project exists, but it is not in this repository.** It is a native Pulumi provider
-(`pulumi-provider-multipass`, implemented 2026-05-08) that exposes Multipass VM lifecycle as
-typed Pulumi resources and instantiates the `single_node` / `single_server_with_clients` /
-`multi_server` topologies. It lives in a **separate private repository** and was not migrated
-here. What *is* here is two unrelated pieces that do not add up to the claimed template:
-
-```mermaid
-graph TB
-    subgraph Claimed["MANUSCRIPT §3.1 — claimed"]
-        C1["pulumi-provider-multipass<br/><i>exists — separate private repo</i>"]
-        C2["1 Nomad server VM"]
-        C3["N Nomad client VMs"]
-        C4["≤30 min provision<br/>≤60 min to first pipeline"]
-        C1 --> C2
-        C1 --> C3
-        C2 --> C4
-    end
-    subgraph Actual["THIS REPOSITORY — what was migrated"]
-        A1["setup.sh<br/><i>copier template, unrendered</i><br/>{{ project_name }} placeholders"]
-        A2["ONE generic Ubuntu 22.04 VM<br/>data-science cloud-init<br/><i>no Nomad</i>"]
-        A3["start_nomad.sh<br/><i>personal scratch script</i><br/>runs nomad agent -dev ON THE HOST"]
-        A4["local_nomadlab.hcl<br/>⚠ hard-coded path<br/>⚠ allow_privileged = true"]
-        A1 --> A2
-        A3 --> A4
-    end
-    Claimed -.->|"gap"| Actual
-    style Claimed fill:#e8f5e9,stroke:#2e7d32
-    style Actual fill:#fdecea,stroke:#c62828
-    style A4 fill:#fff4e1,stroke:#cc8800
-```
-
-Three specific defects:
-
-1. **`setup.sh` is an unrendered copier template.** It still carries `{{ project_name }}`,
-   `{{ multipass_memory }}` and similar placeholders, and it launches **one** general-purpose
-   VM. It does not install or configure Nomad.
-2. **`start_nomad.sh` runs on the host, not in VMs.** It calls `nomad agent -dev` under
-   `/usr/local/bin/bash` with commented-out `nextflow run` lines. It is a developer scratch
-   file, not a provisioning script.
-3. **`local_nomadlab.hcl` will not work for anyone else.** It hard-codes an absolute path from
-   the author's machine as a `host_volume`, and it sets `allow_privileged = true` plus
-   `"docker.priviledged.enabled" = "true"` (note the typo, which means that second key does
-   nothing). **The privileged default contradicts §2.1**, which states that Docker task-driver
-   configuration defaults to non-privileged.
-
-Since §3.1 calls this template *"the canonical reviewer artefact"*, closing this gap is a
-submission blocker rather than a polish item, and it is X0 in the experiment handover. The fix is
-**migration plus vetting**, not new development: bring `pulumi-provider-multipass` and its topology
-declaration into this repository, since a reviewer following the Zenodo DOI must not need access
-to a private repository. The three defects listed above still apply to what is here now.
-
-**Superseded 2026-08-06.** The reviewer path is now `validation/local-cluster/` — a minimal
-multi-node Docker cluster derived from the upstream nf-nomad test setup. It needs only Docker,
-carries MinIO for the s5cmd mode, and supports node-kill chaos, which the single-agent upstream
-compose cannot. The Multipass template is therefore **not** on the critical path, and migrating
-`pulumi-provider-multipass` is no longer required for submission.
 
 ---
 
@@ -216,7 +152,7 @@ substrate for the resilience claim.
 
 | Experiment | Template | Status |
 |---|---|---|
-| **X0** provision + profile | **`validation/local-cluster`** (Docker) | ready — supersedes the Multipass path |
+| **X0** provision + profile | **`templates/local-docker`** (Docker Compose) | ready |
 | **X1** substrate neutrality | `sun-aither` (existing cluster) | ready |
 | **X2** mode equivalence | `gcp-infra` (MinIO + Fusion) | ready |
 | **X3** preemption, 10 trials | `gcp-infra` spot pool, or `spot-compute` | ready |

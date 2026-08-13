@@ -33,7 +33,7 @@ validation/configs/campaign.env
 
 # Live Nomad ACL tokens from a local test cluster — MUST never reach this repo
 # (it is published to Zenodo). Generated at runtime by the local-cluster harness.
-validation/local-cluster/.nomad-token
-validation/local-cluster/.bootstrap.json
+templates/local-docker/.nomad-token
+templates/local-docker/.bootstrap.json
 **/.nomad-token
 **/.bootstrap.json

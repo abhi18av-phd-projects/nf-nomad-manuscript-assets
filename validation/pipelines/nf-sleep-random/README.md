@@ -5,14 +5,14 @@ seeded pseudo-random duration; none of them compute anything.
 
 ```bash
 export NOMAD_ADDR=http://127.0.0.1:4646
-export NOMAD_TOKEN=$(cat ../local-cluster/.nomad-token)
+export NOMAD_TOKEN=$(cat ../../templates/local-docker/.nomad-token)
 nextflow run main.nf -c nextflow.config --tasks 60 --min_sec 5 --max_sec 90 --seed 42
 ```
 
 Then, in another shell, run a preemption trial against it:
 
 ```bash
-cd ../local-cluster && TRIALS=10 ./scripts/chaos.sh
+cd ../../templates/local-docker && TRIALS=10 ./scripts/chaos.sh
 ```
 
 | Parameter | Default | |
