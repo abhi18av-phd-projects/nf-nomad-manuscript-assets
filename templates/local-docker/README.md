@@ -90,8 +90,8 @@ Brought up and exercised end to end on Docker Desktop 24.0.2, 8 CPU / 16 GB, mac
 | Recovery | **4 trials, median 26 s** (24, 26, 26, 27) — node stopped, allocations displaced, job back to 6/6 on survivors |
 | Storage-free | the last trial ran on a cluster with **no object store at all**, confirming reallocation needs only the scheduler |
 
-`trials.tsv` holds the rows. n=3 is a smoke test, not a result, X3 calls for 10 trials
-against the randomised workload, not a fixed-duration sleeper.
+`trials.tsv` holds the rows. n=3 is a check, not a result. X3 calls for 10 trials
+against the randomised workload rather than a fixed-duration sleeper.
 
 ## What each experiment gets
 

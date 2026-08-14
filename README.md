@@ -1,14 +1,12 @@
 # nf-nomad manuscript assets
 
 Deployment templates, validation configurations, measured results and a reviewer protocol for
-nf-nomad, the Nextflow executor plugin for HashiCorp Nomad. This is the companion artefact to
-the nf-nomad manuscript, and it exists so the numbers in that paper can be checked by running
-them again.
+nf-nomad, the Nextflow executor plugin for HashiCorp Nomad. It is the companion artefact to the
+nf-nomad manuscript, and it lets the numbers reported there be re-measured.
 
 ## Start here
 
-Three documents, in order. They take you from a bare machine to the measurements the manuscript
-reports.
+Three documents, in order, from a bare machine to the measurements the manuscript reports.
 
 | | | |
 |---|---|---|
@@ -44,9 +42,8 @@ Templates take their secrets at deploy time, from the environment or from `pulum
 --secret`. Committed configuration files carry placeholders. Runtime tokens written by the local
 cluster are gitignored.
 
-The published tree is clean, but earlier commits in this repository's history contained
-credentials that have since been removed and rotated. Treat the history accordingly rather than
-mining it for working values.
+The published tree is clean. Earlier commits in this repository's history contained credentials,
+which have been removed and rotated, so nothing in the history is a working value.
 
 If you find something that looks like a live credential, please open an issue rather than a pull
 request.

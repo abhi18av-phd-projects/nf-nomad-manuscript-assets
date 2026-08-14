@@ -54,20 +54,18 @@ when the point is that GCP reclaims capacity on its own schedule rather than a s
 container. Full instructions, including the configuration values you must supply, are in
 [`../templates/cloud-gcp/gcp-infra/README.md`](../templates/cloud-gcp/gcp-infra/README.md).
 
-## Two things that will look like bugs
+## Namespace and shared paths
 
-**The cluster's namespace is not `default`.** The local template bootstraps into its own Nomad
-namespace, so the Nomad UI opens on an empty view and CLI queries return nothing until you set
-it. Export `NOMAD_NAMESPACE` alongside `NOMAD_ADDR` and `NOMAD_TOKEN`, or pass `-namespace` to
-every command.
+The local template creates its own Nomad namespace, so the UI opens on an empty view and CLI
+queries return nothing until you set it. Export `NOMAD_NAMESPACE` alongside `NOMAD_ADDR` and
+`NOMAD_TOKEN`, or pass `-namespace` on every command.
 
-**On macOS the shared work directory must not live under `/tmp`.** `/tmp` is a symlink to
-`/private/tmp`, so a path underneath it resolves to `/private/tmp/...` on the host while a Linux
-task container knows only `/tmp`. Staged inputs then become dangling symlinks and tasks fail
-with variations of "the file does not exist" while the allocation itself looks healthy. The
-template picks a non-symlinked path per platform; override it with `NOMAD_SHARED_DIR` if you
-need a different location. Whatever you choose, the host and container paths must be identical,
-because the Nomad client launches task containers on the host daemon.
+On macOS, keep the shared work directory outside `/tmp`. `/tmp` is a symlink to `/private/tmp`,
+so a path under it resolves to `/private/tmp/...` on the host while the Linux task container
+sees only `/tmp`. Staged inputs become dangling symlinks and tasks fail with "the file does not
+exist" while the allocation looks healthy. The template picks a non-symlinked path per platform;
+override it with `NOMAD_SHARED_DIR`. Host and container paths must match, since the Nomad client
+launches task containers on the host daemon.
 
 ## Record the environment
 

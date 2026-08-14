@@ -1,13 +1,13 @@
 # X2 — work-directory mode equivalence (Fusion vs nf-nomad-s5cmd)
 
-**Run date:** 2026-08-13. **Verdict: the modes are interchangeable.** Every sequence
-output is bit-identical between the two object-store work-directory mechanisms.
+**Run date:** 2026-08-13. Every sequence output is bit-identical between the two
+object-store work-directory mechanisms, so the modes are interchangeable.
 
 ## Design
 
-One variable: how the work directory is provided. Everything else is held constant, and
-the arms were run **sequentially** rather than concurrently so neither competed with the
-other for cores or object-store bandwidth.
+One variable: how the work directory is provided. Everything else is held constant. The
+arms ran sequentially rather than concurrently, so neither competed with the other for
+cores or object-store bandwidth.
 
 | | Arm A | Arm B |
 |---|---|---|
@@ -17,16 +17,15 @@ other for cores or object-store bandwidth.
 | Cluster, inputs, images | identical | identical |
 | `--outdir` | node-local path | node-local path |
 
-Publishing to a **local** `--outdir` rather than `s3://` is deliberate: Nextflow's own AWS
-SDK fails on `putObject` retries against this endpoint
-(`IllegalStateException: Content input stream does not support mark/reset, and was already
-read once`), which is a defect in the publish path and unrelated to the work-directory
-mode under test. Keeping it local removes that confound from the comparison.
+Both arms publish to a local `--outdir` rather than `s3://`. Nextflow's AWS SDK fails on
+`putObject` retries against this endpoint (`IllegalStateException: Content input stream
+does not support mark/reset, and was already read once`). That is a defect in the publish
+path, not in the work-directory mode under test, so keeping outputs local keeps it out of
+the comparison.
 
-Both arms set `NXF_TEMP` to node-local disk. Without it, `collectFile()` — which has no
-`storeDir` in the standard nf-core template — tries to create its temporary directory
-*under* the work directory, and on an object-store work directory that `mkdir` fails
-before any task is submitted.
+Both arms also set `NXF_TEMP` to node-local disk. `collectFile()` has no `storeDir` in the
+standard nf-core template, so it creates its temporary directory under the work directory.
+On an object-store work directory that `mkdir` fails before any task is submitted.
 
 ## Runtime
 
@@ -37,7 +36,7 @@ before any task is submitted.
 | Tasks completed | 54 | 54 |
 | Output files | 68 | 68 |
 
-The 18 s difference is a single paired run and carries no performance claim.
+The 18 s difference comes from a single paired run and carries no performance claim.
 
 ## Correctness
 
@@ -51,27 +50,26 @@ Manifests: `e2-fusion-digests.tsv`, `e2-s5cmd-digests.tsv` (64 files each), prod
 | Data tables | 0 | 4 |
 | Other | — | — |
 
-**Every sequence output — the filtered and classified reads the pipeline exists to
-produce — is bit-identical across the two modes.**
+All seven sequence outputs are bit-identical across the two modes. These are the filtered
+and classified reads the pipeline exists to produce.
 
 ### Why the remaining files differ
 
-The differences are path-bearing, not biological.
+The differences carry paths and timestamps, not biological content.
 
-Three of the four differing tables are **generated downstream samplesheets**
+Three of the four differing tables are generated downstream samplesheets
 (`downstream_samplesheets/mag-pe.csv`, `mag-se.csv`, `taxprofiler.csv`) whose rows contain
-absolute output paths. Two runs writing to different directories cannot produce identical
-files here, by construction. The fourth, `summary/summary.tsv`, carries per-run
-provenance.
+absolute output paths. Two runs writing to different directories cannot match here. The
+fourth, `summary/summary.tsv`, carries per-run provenance.
 
-The QC differences are the familiar MultiQC/FastQC pattern: embedded timestamps, paths and
-plot metadata. That 26 of 53 are nonetheless identical rules out systematic corruption.
+The QC differences are embedded MultiQC and FastQC timestamps, paths and plot metadata.
+That 26 of 53 are nonetheless identical rules out systematic corruption.
 
-> **This table understates the agreement.** `output_digests.py` normalises ISO dates but
-> **not absolute paths**, because its rules were written for MTBseq-nf's outputs. A
+> The table understates the agreement. `output_digests.py` normalises ISO dates but not
+> absolute paths, because its rules were written for MTBseq-nf's outputs. A
 > path-normalisation rule would reclassify all four data tables and most of the QC files
-> as volatile-only rather than genuinely different. The honest reading is that no output
-> representing a biological result differs; the reported counts are conservative.
+> as volatile-only. No output representing a biological result differs; the reported
+> counts are conservative.
 
 ## Claim this supports
 
@@ -83,17 +81,17 @@ plot metadata. That 26 of 53 are nonetheless identical rules out systematic corr
 
 ## Scope and limits
 
-- **One pipeline, `-profile test` scale.** This is a small workload by design.
+- **One pipeline at `-profile test` scale.** This is a small workload.
 - **`test_full` was attempted and does not extend this result.** At that scale both arms
-  fail on the same process with tasks exiting 0 and their outputs not visible to Nextflow.
-  Because the failure is identical under two mechanisms that share almost no code path,
-  it is not attributable to either work-directory implementation, and it is tracked
+  fail on the same process, with tasks exiting 0 and their outputs not visible to
+  Nextflow. The failure is identical under two mechanisms that share almost no code path,
+  so it is not attributable to either work-directory implementation. It is tracked
   separately rather than treated as an E2 finding. See
   `2026-08-14-e2-mode-equivalence-and-the-missing-output-signature.md` in the project
   brainstorms.
-- **A second pipeline.** E1 uses MTBseq-nf; E2 uses `nf-core/detaxizer`. MTBseq-nf could
-  not be used here: it does not currently complete on either object-store mode on this
-  cluster, for two unrelated reasons.
+- **A second pipeline.** E1 uses MTBseq-nf and E2 uses `nf-core/detaxizer`. MTBseq-nf
+  could not be used here, because it does not currently complete on either object-store
+  mode on this cluster, for two unrelated reasons.
 
 ## Contents
 

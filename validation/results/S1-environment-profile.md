@@ -15,7 +15,7 @@ reproducibility.
 | Task drivers available | `docker`, `containerd`, `podman`, `singularity`, `exec`, `exec2`, `java`, `raw_exec`, `qemu` |
 | Driver used for tasks | **`docker`** (non-privileged) |
 
-## Execution node (X1 both arms, X0 smoke tests)
+## Execution node (X1 both arms, X0 verification runs)
 
 | Property | Value |
 |---|---|
@@ -72,7 +72,7 @@ capture:
 
 Per-task `submit`/`start`/`complete` timestamps were captured, which is the input
 X4 needs for placement-latency percentiles (`start − submit`). Observed
-placement latency in these smoke runs ranged from ~3 s to ~77 s, the longer tail
-corresponding to first-time container image pulls — image locality must therefore
-be controlled (pre-pulled or warm) before latency percentiles are reported as a
+placement latency in these runs ranged from ~3 s to ~77 s. The long tail
+corresponds to first-time container image pulls, so image locality must be
+controlled (pre-pulled or warm) before latency percentiles are reported as a
 property of the executor rather than of the image cache.

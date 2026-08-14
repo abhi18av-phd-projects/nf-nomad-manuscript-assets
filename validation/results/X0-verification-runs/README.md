@@ -1,9 +1,9 @@
-# X0 smoke runs, execution metadata
+# X0 verification runs, execution metadata
 
 Raw Nextflow execution metadata from the X0 toolchain-verification runs
-(2026-08-06). These are not the manuscript's headline results, they verify
-that the executor, configs and reporting chain work end to end, and they are the
-worked example of how the runtime numbers in the paper are derived.
+(2026-08-06). These are not headline results. They verify that the executor,
+configs and reporting chain work end to end, and they show how the runtime
+numbers in the paper are derived.
 
 Environment: `../S1-environment-profile.md`. Software: nf-nomad 0.5.0-edge3,
 Nextflow 26.04.3, Docker task driver, single execution node.

@@ -72,23 +72,22 @@ timed run must have both arms on one node, or the walltime numbers mean nothing.
 Same executor, same cluster, different work-directory backend. Needs MinIO or another
 S3-compatible endpoint reachable from every worker.
 
-**Two settings are required before either command will work**, and both fail in ways that
-point somewhere other than the cause:
+Set `NXF_TEMP` to a local path before running either arm:
 
 ```bash
 export NXF_TEMP=/local/nxf-temp && mkdir -p /local/nxf-temp
 ```
 
-`collectFile()` without a `storeDir` — the standard nf-core idiom for the workflow-summary
-and methods YAMLs — builds its temporary directory *under* the work directory. On an
-object-store work directory that `mkdir` fails and the run dies **before submitting a single
-task**, reporting `Unable to create temporary directory`, which reads as a bucket permissions
-problem. Verified: setting `NXF_TEMP` alone took a run from 0 tasks submitted to 95 completed.
+Without it the run fails before submitting any task, reporting `Unable to create temporary
+directory`. The cause is `collectFile()`, which nf-core pipelines call without a `storeDir`
+for the workflow-summary and methods YAMLs. It creates its temp directory inside the work
+directory, and that mkdir fails on an object store. Setting `NXF_TEMP` alone took one run
+from 0 tasks to 95.
 
-Publish to a **local** `--outdir`, not `s3://`. Nextflow's own AWS SDK fails on `putObject`
-retries against an S3 endpoint (`Content input stream does not support mark/reset, and was
-already read once`). That is a defect in the publish path, unrelated to the mode under test,
-and routing outputs locally removes it from the comparison.
+Publish to a local `--outdir` rather than `s3://`. Nextflow's AWS SDK fails on `putObject`
+retries against an S3 endpoint with `Content input stream does not support mark/reset, and
+was already read once`. That is a bug in the publish path rather than in the work-directory
+mode, so keeping outputs local keeps it out of the comparison.
 
 ```bash
 nextflow run mtbseq-nf -c validation/configs/x2-fusion.config -with-trace --outdir <local-dir>
@@ -96,39 +95,40 @@ nextflow run mtbseq-nf -c validation/configs/x2-s5cmd.config  -with-trace --outd
 python3 validation/scripts/output_digests.py <fusion-outdir> <s5cmd-outdir>
 ```
 
-Run the two arms **sequentially**, not concurrently. Run together they compete for cores and
-object-store bandwidth, and neither arm then experiences the conditions the other did.
+Run the arms one after the other. In parallel they compete for cores and object-store
+bandwidth, so neither runs under the conditions of the other.
 
-The `nf-nomad-s5cmd` arm additionally needs four things set, each of which fails quietly if
-missed: the plugin present in the `plugins` block; `enabled` + `workDir.enabled` +
-`workDir.bucket`; an explicit `nomad.s5cmd.s3` block (it is **not** inherited from Nextflow's
-`aws` scope, and without an endpoint s5cmd addresses real AWS); and a `binary` path that
-resolves identically in the head and in task containers. The plugin's own README lists the
-symptom each produces.
+The s5cmd arm needs four settings. Missing any of them fails quietly:
 
-## ⚠ The `s3://` endpoint-override trap
+- `nf-nomad-s5cmd` in the `plugins` block
+- `enabled`, `workDir.enabled` and `workDir.bucket`
+- an explicit `nomad.s5cmd.s3` block. It is not inherited from Nextflow's `aws` scope, and
+  with no endpoint set s5cmd talks to real AWS
+- a `binary` path that resolves in the head and in the task containers
 
-Setting `aws.client.endpoint` to a private object store redirects **every** `s3://` URI in the
-run, including public-AWS paths that nf-core `test_full` profiles use for reference genomes
-and samplesheets. Nextflow then looks for public objects on your own store and aborts at
-parameter validation in seconds:
+The plugin README lists the symptom each one produces.
+
+## The `s3://` endpoint-override trap
+
+`aws.client.endpoint` applies to every `s3://` URI in the run, including public AWS paths.
+nf-core `test_full` profiles use those for reference genomes and samplesheets, so Nextflow
+looks for public objects on your own store and aborts at parameter validation:
 
 ```
 * --input (…/samplesheet.full.csv): Validation of file failed:
     -> Entry 1: … 's3://ngi-igenomes/test-data/mag/ERR3201918_1.fastq.gz' does not exist
 ```
 
-It reads like a broken pipeline. It is a routing problem. Give public inputs as HTTPS URLs, or
-stage them locally first and reference the local paths — the latter also removes a large,
-truncation-prone download from the middle of a long run:
+Give public inputs as HTTPS URLs, or download them first and reference local paths.
+Downloading first also avoids a multi-gigabyte transfer part-way through a long run:
 
 ```bash
 curl -s https://raw.githubusercontent.com/nf-core/test-datasets/<branch>/samplesheets/<sheet>.csv \
   | sed 's#s3://ngi-igenomes/#https://ngi-igenomes.s3.eu-west-1.amazonaws.com/#g' > sheet.https.csv
 ```
 
-Grep the resolved profile for `s3://` before launching anything long. `-profile test` is
-unaffected; its data is fetched over HTTPS already.
+Check the resolved profile for `s3://` before starting a long run. `-profile test` is not
+affected, since its data comes over HTTPS.
 
 ## X3 — preemption resilience
 

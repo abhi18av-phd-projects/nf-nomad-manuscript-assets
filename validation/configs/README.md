@@ -16,11 +16,10 @@ so these files are publishable as-is, no cluster identity, endpoints, or tokens.
 | `../chaos/` | **X3** (preemption) | nf-nomad + chaos harness | — | multi |
 | `nextflow.trace.config` | all | — | — | — |
 
-- **X1** isolates the *only* variable that matters for substrate neutrality, local vs Nomad, on one node with identical hardware and a shared POSIX
-  work dir. Both arms run the same pipeline (`mtbseq-nf`) on the same node.
-- **X2** isolates the *work-dir mode*, Fusion vs s5cmd, across nodes (S3 is the
-  shared layer). Run both pipelines (`mtbseq-nf` and `nf-core/taxprofiler`)
-  through both modes and compare outputs.
+- **X1** varies only the executor, local vs Nomad, on one node with a shared POSIX
+  work dir. Both arms run `mtbseq-nf` on the same node.
+- **X2** varies only the work-dir mode, Fusion vs s5cmd, across nodes with S3 as the
+  shared layer. Run both pipelines through both modes and compare outputs.
 
 ## Pipelines & data
 
@@ -29,12 +28,11 @@ so these files are publishable as-is, no cluster identity, endpoints, or tokens.
 | `mtbseq-nf` | published, Microorganisms 2025 13(12):2685 | ENA `PRJEB7727` — 5 samples (timed loop), then 90 (digest claim) |
 | `nf-core/taxprofiler` | nf-core | `-profile test_full` |
 
-## Reproducing without any vendor CLI, the Nomad head job
+## Running the campaign on stock Nomad
 
-A reviewer has no project-specific CLI, so the campaign must be launchable with stock
-HashiCorp Nomad. `nextflow-head.nomad.hcl` runs the Nextflow driver *as a Nomad
-batch job*; nf-nomad then submits each process as its own Nomad job. Launch it
-with plain `nomad job run` on any Nomad cluster, no vendor tooling:
+`nextflow-head.nomad.hcl` runs the Nextflow driver as a Nomad batch job, and nf-nomad
+submits each process as its own Nomad job. It takes plain `nomad job run` on any Nomad
+cluster:
 
 ```bash
 # 1. put the secrets Variable on your cluster (see nextflow-head.vars.example)
@@ -49,8 +47,8 @@ nomad job run \
   nextflow-head.nomad.hcl
 ```
 
-Arm A (local executor) is a plain `nextflow run` and needs no head job. Every
-`config_file` above is one of the four in the matrix.
+Arm A uses the local executor, so it is a plain `nextflow run` with no head job.
+`config_file` is one of the four in the matrix.
 
 ## Run recipe (direct, from a submit host with cluster + FS access)
 
@@ -71,19 +69,19 @@ RUN_TAG=x2-fusion-taxprof  nextflow run nf-core/taxprofiler -c x2-fusion.config 
 RUN_TAG=x2-s5cmd-taxprof   nextflow run nf-core/taxprofiler -c x2-s5cmd.config  -w s3://<bucket>/work-x2-s5cmd-taxprof  -profile test_full,<container> ...
 ```
 
-## Verified working, and the four traps that stop it working
+## Verified working, and four traps on the way there
 
-The whole matrix was smoke-tested end to end on 2026-08-06 with
-nf-nomad 0.5.0-edge3 / Nextflow 26.04.3, running two reference pipelines
-through the Nomad executor to completion:
+The matrix was checked end to end on 2026-08-06 with nf-nomad 0.5.0-edge3 and
+Nextflow 26.04.3, running two reference pipelines through the Nomad executor to
+completion:
 
 | Pipeline | Result | Tasks |
 |---|---|---|
 | `nextflow-io/rnaseq-nf` | exit 0, **54 s** | 4/4 `COMPLETED` |
 | `nf-core/demo` (`-r dev -profile test,docker`) | exit 0, **205 s** | 8/8 `COMPLETED` |
 
-Getting there required four fixes. Each produces a confusing failure, so they are
-worth knowing before you burn a long run:
+Four fixes were needed first. Each one fails in a way that points somewhere other
+than the cause:
 
 1. **Use the strict-parser config syntax, not the old closure DSL.** Nextflow
    26.x's strict config parser rejects the Groovy closure DSL outright
@@ -104,16 +102,21 @@ worth knowing before you burn a long run:
 3. `privileged = false`. nf-nomad requests privileged Docker containers by
    default; most hardened Nomad agents refuse, and every task dies with
    `Docker privileged mode is disabled on this Nomad agent`, reported by Nextflow
-   as a *task* failure (`status=FAILED`, `exit=0`), which misdirects debugging.
+   as a task failure (`status=FAILED`, `exit=0`) rather than a configuration error.
 4. Set the node pool explicitly (`nodePool` in the config, `node_pool` in the
-   job HCL). If the pool has no nodes, the scheduler evaluates zero nodes and
-   the job sits `pending` forever with no error message, the eval carries no
-   constraint text to explain it. `failOnPlacementFailure = true` converts other
-   placement failures into fast errors rather than hangs.
+   job HCL). If the pool has no nodes, the scheduler evaluates zero nodes and the
+   job sits `pending` indefinitely. The evaluation carries no constraint text to
+   explain it.
 
-Endpoint choice: point `NOMAD_ADDR` at the address the Nomad agent actually
-binds (typically a private/VPN address such as a Tailscale IP), not a public edge
-URL, fewer hops and no proxy in the path.
+   Leave `failOnPlacementFailure` at its default of `false` on 0.5.0-edge3. Setting
+   it `true` fails tasks that are queued normally behind a busy node, because the
+   check keys on a wall-clock timeout that defaults to 60 s and cannot tell queueing
+   from a genuine placement failure. That distinction is fixed on the
+   `fix/placement-failure-vs-queueing` branch; until it releases, `true` costs runs.
+
+Point `NOMAD_ADDR` at the address the Nomad agent binds, typically a private or VPN
+address such as a Tailscale IP, rather than a public edge URL. That keeps proxies out
+of the path.
 
 ## Non-negotiables (handover §4)
 
@@ -125,7 +128,7 @@ URL, fewer hops and no proxy in the path.
   comparison is void.
 - **Driver:** `exec`/`exec2` hang on some kernels (Landlock); use `raw_exec` or
   docker and record which in S1.
-- **From-scratch cost:** `--resume` does not cache across launches, budget full
+- **From-scratch cost:** `--resume` does not cache across launches. Budget full
   wall-clock per arm and get the config right before launching.
 
 ## Capture per run → supplementary
