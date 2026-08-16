@@ -19,6 +19,21 @@
     {
       "name": "Aguilera, Jorge",
       "orcid": "0009-0005-5537-7029"
+    },
+    {
+      "name": "De Smet, Matthias",
+      "orcid": "0000-0003-2555-3114"
+    },
+    {
+      "name": "Haezebrouck, Jules"
+    },
+    {
+      "name": "Sante, Tom",
+      "orcid": "0009-0006-7890-9945"
+    },
+    {
+      "name": "van der Spuy, Gian",
+      "orcid": "0000-0002-9067-5903"
     }
   ],
   "related_identifiers": [
@@ -26,6 +41,18 @@
       "identifier": "https://github.com/nextflow-io/nf-nomad",
       "relation": "isSupplementTo",
       "scheme": "url"
+    },
+    {
+      "identifier": "10.5281/zenodo.19217564",
+      "relation": "isSupplementTo",
+      "scheme": "doi"
+    },
+    {
+      "identifier": "https://github.com/abhi18av-phd-projects/nf-nomad-manuscript-assets",
+      "relation": "isSupplementTo",
+      "scheme": "url"
     }
-  ]
+  ],
+  "version": "1.0.0",
+  "publication_date": "2026-08-16"
 }

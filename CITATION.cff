@@ -16,6 +16,8 @@ keywords:
   - workflow management
   - reproducibility
   - infrastructure as code
+version: 1.0.0
+date-released: 2026-08-16
 authors:
   - given-names: Abhinav
     family-names: Sharma
@@ -23,4 +25,24 @@ authors:
   - given-names: Jorge
     family-names: Aguilera
     orcid: "https://orcid.org/0009-0005-5537-7029"
-# TODO: complete the author list to match the manuscript submission (7 authors).
+  - given-names: Matthias
+    family-names: De Smet
+    orcid: "https://orcid.org/0000-0003-2555-3114"
+  - given-names: Jules
+    family-names: Haezebrouck
+  - given-names: Tom
+    family-names: Sante
+    orcid: "https://orcid.org/0009-0006-7890-9945"
+  - given-names: Gian
+    family-names: van der Spuy
+    orcid: "https://orcid.org/0000-0002-9067-5903"
+references:
+  - type: article
+    title: "nf-nomad: a Nextflow executor for HashiCorp Nomad"
+    authors:
+      - given-names: Abhinav
+        family-names: Sharma
+      - given-names: Jorge
+        family-names: Aguilera
+    doi: 10.5281/zenodo.19217564
+    year: 2026
