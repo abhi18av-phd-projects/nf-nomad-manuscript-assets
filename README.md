@@ -50,7 +50,7 @@ flowchart TB
     direction TB
     H3["held constant<br/><i>pipeline · cluster</i>"]:::held
     H3 --> C1["worker allocation terminated<br/>mid-run, 9 independent trials"]:::arm
-    C1 --> R3["<b>9 of 9 rescheduled</b>, no intervention, no timeouts<br/>recovery needs Nomad <i>and</i> a Nextflow retry policy"]:::res
+    C1 --> R3["<b>9 of 9 allocations rescheduled</b>, no intervention, no timeouts<br/><i>pipeline survival is a second layer: it needs errorStrategy=retry</i>"]:::res
   end
 ```
 
