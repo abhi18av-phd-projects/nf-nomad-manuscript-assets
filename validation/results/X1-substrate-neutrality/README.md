@@ -114,6 +114,7 @@ orchestrator involved, at the same magnitude.
 | `armA-digests.tsv`, `armB-digests.tsv` | SHA-256 manifests (raw + normalised) |
 | `x1-runtime-summary.tsv` | derived runtime / placement-latency percentiles |
 | `publication.05samples.*.csv/tsv` | sample sheet + cohort file used |
+| `publication.90samples.ena.csv` | sample sheet for the full-scale run (see below) |
 
 Reproduce the comparison:
 ```bash
@@ -132,6 +133,20 @@ Run dates: arm A 2026-08-07/08, arm B 2026-08-09/10. **Verdict: substrate-neutra
 and more tightly so than the 5-sample pilot.** Same design as above: two arms, same node,
 same data, same images, same pipeline revision; the execution substrate is the only
 variable. Both arms completed **636/636 tasks with zero failures**.
+
+Inputs: the 90-sample cohort is listed in `publication.90samples.ena.csv`, in the same
+`sample,library,fastq_1,fastq_2` form as the 5-sample pilot sheet. It is the cohort
+published with MTBseq-nf (Sharma et al., *Microorganisms* 2025, 13(12):2685,
+doi:10.3390/microorganisms13122685), derived from that paper's supplementary samplesheet
+with the local staging paths rewritten to ENA FTP URLs.
+
+**Fetch the reads from this file, not by querying `PRJEB7727` yourself.** The digest
+manifests below name samples as `<sample>_<library>`, and for 30 of the 88 samples that
+pair maps to two or three different sequencing runs within the project — for example
+`10205-03/lib915` matches ERR552308, ERR552309 and ERR552310, of which this campaign used
+ERR552309. There is no positional rule for picking the right one. Reconstructing the
+cohort from the sample and library names alone will silently select the wrong runs for
+about a third of it, and the digests will then not reproduce.
 
 ## Runtime
 
