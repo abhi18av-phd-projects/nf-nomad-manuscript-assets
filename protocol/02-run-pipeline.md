@@ -1,5 +1,14 @@
 # 2 — Run the experiments
 
+**Pipeline revisions are pinned below and should stay pinned.** The `-r` flags name the
+exact revisions the deposited results were produced from: `mycobactopia-org/MTBseq-nf`
+`v1.0.0` for X1 and `nf-core/detaxizer` `1.3.0` for X2. Dropping `-r` resolves the default
+branch instead, which moves, so the digest manifests would be compared against a different
+pipeline than the one that produced them. The single exception is the X0 cluster check,
+which is recorded as having run `nf-core/demo -r dev`; `dev` is a branch rather than a tag,
+but X0 only establishes that the cluster places and runs work at all, and nothing in the
+paper depends on its outputs.
+
 Four experiments, each isolating one variable. The configs in
 [`../validation/configs/`](../validation/configs/) are env-driven, so none of them needs editing
 before use.
@@ -38,7 +47,7 @@ export NOMAD_TOKEN=$(cat templates/local-docker/.nomad-token)
 Before measuring, confirm the plugin works end to end on this cluster:
 
 ```bash
-nextflow run nf-core/demo -profile test -c validation/configs/x1-armB-nomad-posix.config
+nextflow run nf-core/demo -r dev -profile test,docker -c validation/configs/x1-armB-nomad-posix.config
 ```
 
 If this fails, nothing below is interpretable. Fix it first.
@@ -50,11 +59,11 @@ differs, which is what makes any output difference attributable to it.
 
 ```bash
 # arm A — Nextflow's local executor, no Nomad in the path
-nextflow run mtbseq-nf -c validation/configs/x1-armA-local.config \
+nextflow run mycobactopia-org/MTBseq-nf -r v1.0.0 -c validation/configs/x1-armA-local.config \
   -with-trace -with-report -with-timeline
 
 # arm B — the same pipeline through nf-nomad
-nextflow run mtbseq-nf -c validation/configs/x1-armB-nomad-posix.config \
+nextflow run mycobactopia-org/MTBseq-nf -r v1.0.0 -c validation/configs/x1-armB-nomad-posix.config \
   -with-trace -with-report -with-timeline
 ```
 
@@ -90,8 +99,8 @@ was already read once`. That is a bug in the publish path rather than in the wor
 mode, so keeping outputs local keeps it out of the comparison.
 
 ```bash
-nextflow run mtbseq-nf -c validation/configs/x2-fusion.config -with-trace --outdir <local-dir>
-nextflow run mtbseq-nf -c validation/configs/x2-s5cmd.config  -with-trace --outdir <local-dir>
+nextflow run nf-core/detaxizer -r 1.3.0 -profile test -c validation/configs/x2-fusion.config -with-trace --outdir <local-dir>
+nextflow run nf-core/detaxizer -r 1.3.0 -profile test -c validation/configs/x2-s5cmd.config  -with-trace --outdir <local-dir>
 python3 validation/scripts/output_digests.py <fusion-outdir> <s5cmd-outdir>
 ```
 
