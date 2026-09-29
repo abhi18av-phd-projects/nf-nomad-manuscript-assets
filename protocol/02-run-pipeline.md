@@ -141,20 +141,38 @@ affected, since its data comes over HTTPS.
 
 ## X3 — preemption resilience
 
-Start a long-running workload, then take nodes away underneath it. The synthetic pipeline exists
-so that kills land at random points in task lifetimes rather than always at the same moment:
+Start a workload, then take allocations away underneath it. The deposited trials were produced
+on the X1 five-sample parallel workflow and its 41 tasks, not on a synthetic one, so reproduce
+them that way:
 
 ```bash
-nextflow run validation/pipelines/nf-sleep-random \
-  --tasks 40 --min-sec 20 --max-sec 90 --seed 42 -c validation/configs/x1-armB-nomad-posix.config &
+nextflow run mycobactopia-org/MTBseq-nf -r v1.0.0 -c validation/configs/x1-armB-nomad-posix.config \
+  --input <5-sample sheet> --parallel true &
 
-cd templates/local-docker
-TRIALS=10 JOB=<nomad-job-name> ./scripts/chaos.sh
+python3 validation/scripts/preemption_trial.py \
+  --job-prefix <task-job-prefix> --trials 10 --execute --out S4-preemption.tsv
 ```
 
-`chaos.sh` writes one row per trial to `trials.tsv`. Read its header before trusting a number —
-it records how recovery is defined, and it deliberately marks trials that failed to disrupt any
-work as `NO_DISRUPTION` and excludes them, rather than counting them as instant recoveries.
+`--job-prefix` scopes every kill to the one pipeline run, and the harness aborts rather than
+continuing if a candidate job name matches a platform service. `--execute` is required; the
+default is a dry run that prints the candidates and changes nothing.
+
+Run the trials twice, once under Nextflow's default error handling and once with
+`errorStrategy = 'retry'`. The deposited data is both runs together, four trials and five, in
+`S4-preemption-noretry.tsv` and `S4-preemption-retry.tsv`. The two configurations are what
+separate allocation recovery from pipeline survival, which is the finding rather than a detail
+of the method.
+
+Trials that failed to disrupt any running work are recorded as invalid and excluded, rather
+than counted as instant recoveries. The manifests keep the harness's own numbering, so the
+excluded attempts hold their positions and the nine valid trials are numbered 2 to 10.
+
+Two other pieces sit nearby and measure something else. `templates/local-docker/scripts/chaos.sh`
+stops a whole client container and times the job back to its full running count, which is node
+loss rather than the loss of one task, and it writes `trials.tsv`. `validation/pipelines/nf-sleep-random`
+is a synthetic workload whose tasks sleep for seeded random durations, so kills land at varied
+points in a task lifetime; it computes nothing, so it can show recovery but never correctness.
+Neither produced the reported numbers.
 
 ## X4 — placement latency
 

@@ -141,7 +141,7 @@ doi:10.3390/microorganisms13122685), derived from that paper's supplementary sam
 with the local staging paths rewritten to ENA FTP URLs.
 
 **Fetch the reads from this file, not by querying `PRJEB7727` yourself.** The digest
-manifests below name samples as `<sample>_<library>`, and for 30 of the 88 samples that
+manifests below name samples as `<sample>_<library>`, and for 30 of the 90 samples that
 pair maps to two or three different sequencing runs within the project — for example
 `10205-03/lib915` matches ERR552308, ERR552309 and ERR552310, of which this campaign used
 ERR552309. There is no positional rule for picking the right one. Reconstructing the

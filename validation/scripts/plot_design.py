@@ -24,7 +24,7 @@ HELD = "#f2f2ef"
 EXPERIMENTS = [
     {
         "id": "E1",
-        "question": "Does the executor\nchange the result?",
+        "question": "Does the choice of executor\nchange the result?",
         "held": "MTBseq-nf, 90 sequences\nENA PRJEB7727\nsame inputs, containers, hardware",
         "arms": ["Nextflow\nlocal executor", "nf-nomad"],
         "varies": "the executor",
@@ -32,15 +32,15 @@ EXPERIMENTS = [
     },
     {
         "id": "E2",
-        "question": "Do the data paths\nagree?",
+        "question": "Does the choice of storage\nplane alter the outputs?",
         "held": "nf-core/detaxizer 1.3.0\nsame cluster, inputs, images",
         "arms": ["Fusion\nwith Wave", "nf-nomad-s5cmd"],
-        "varies": "the work-directory mode",
-        "criterion": "Sequence outputs bit-identical\nbetween modes, with any\ndifference confined to paths\nand timestamps",
+        "varies": "the storage plane",
+        "criterion": "Results bit-identical between\nmodes, with any difference confined\nto files carrying paths and\ntimestamps, not biological content",
     },
     {
         "id": "E3",
-        "question": "Does the cluster\nsurvive losing nodes?",
+        "question": "Does the pipeline finish despite\ntransient nodes leaving?",
         "held": "one running pipeline\nnine independent trials",
         "arms": ["Default\nerror handling", "errorStrategy\n= 'retry'"],
         "varies": "worker capacity, removed mid-run",

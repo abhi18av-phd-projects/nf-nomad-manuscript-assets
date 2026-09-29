@@ -58,7 +58,7 @@ flowchart TB
 |---|---|---|
 | E1 | `x1-armA-local.config`, `x1-armB-nomad-posix.config` | [`X1-substrate-neutrality/`](validation/results/X1-substrate-neutrality/) |
 | E2 | `x2-fusion.config`, `x2-s5cmd.config` | [`X2-mode-equivalence/`](validation/results/X2-mode-equivalence/) |
-| E3 | `templates/local-docker/scripts/chaos.sh` | [`X3-preemption/`](validation/results/X3-preemption/) |
+| E3 | `validation/scripts/preemption_trial.py` | [`X3-preemption/`](validation/results/X3-preemption/) |
 
 ## What is here
 
@@ -68,7 +68,7 @@ flowchart TB
 | `templates/cloud-gcp/` | A GCP preemptible spot fleet joined over an overlay network. This is where the preemption result is measured. |
 | `templates/ARCHITECTURE.md` | Diagrams of what each template provisions. |
 | `validation/configs/` | One Nextflow config per work-directory mode: shared POSIX, Fusion, nf-nomad-s5cmd. |
-| `validation/pipelines/` | The synthetic workload used for preemption trials. |
+| `validation/pipelines/` | A synthetic sleep workload for exercising recovery. The reported preemption trials used the X1 pipeline, not this. |
 | `validation/results/` | The measured datasets behind the manuscript, one directory per experiment. |
 | `validation/scripts/` | Digest comparison, trace metrics, preemption timing. |
 | `protocol/` | The three documents above. |
