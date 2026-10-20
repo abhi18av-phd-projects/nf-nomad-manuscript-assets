@@ -1,4 +1,4 @@
-# X3, preemption recovery (the number that replaces the unverified "47 s")
+# E3, preemption recovery (the number that replaces the unverified "47 s")
 
 **Status: COMPLETE. 9 trials run, 9/9 recovered, median 15.63 s.** The result and
 methodology are below; the header previously said "trials not yet run" and was
@@ -6,7 +6,7 @@ stale from the harness-building commit.
 
 The manuscript currently asserts a median recovery of *47 seconds across 10
 preemption trials*. That number is flagged in the claim-evidence matrix as
-possibly illustrative, no dataset backs it. X3 exists to produce a real one.
+possibly illustrative, no dataset backs it. E3 exists to produce a real one.
 If the measured median differs, the number changes; that is the point.
 
 ## Why the upstream chaos harness was not used
@@ -20,7 +20,7 @@ mis-scoped for this one:
 | `chaos_node.yml` | **Drains whole nodes.** A drain evicts every allocation on the node, not just the pipeline's. Its skiplist names two lab nodes and does **not** cover the node that hosts the platform services here — a run would have taken down the object store, auth service, database, proxies and every deployed app. |
 | `chaos_job.yml` | Selects victims by namespace allow/deny list. Its allowlist names a namespace that does not exist on this cluster (so it targets nothing), while its denylist excludes the namespace where the executor's task jobs actually run (so it would skip the intended targets). Inoperative as written, and blast-radius-by-namespace if "fixed" naively. |
 
-Node-level chaos is the wrong instrument for this measurement anyway: X3 asks how
+Node-level chaos is the wrong instrument for this measurement anyway: E3 asks how
 fast the executor recovers a task, which is answered by killing one task
 allocation, not by evicting everything co-located with it.
 
@@ -52,10 +52,10 @@ and S3 health stayed `200`.
 
 ## Method (when run)
 
-1. Start a pipeline run long enough to hold running tasks (the X1 5-sample
+1. Start a pipeline run long enough to hold running tasks (the E1 5-sample
    parallel workflow: 41 tasks, ~48 min, sustains 5 concurrent per-sample steps).
 2. Take the run's task-job prefix from the executor's job naming.
-3. `preemption_trial.py --job-prefix <prefix> --trials 10 --execute --out S4-preemption.tsv`
+3. `preemption_trial.py --job-prefix <prefix> --trials 10 --execute --out E3-preemption.tsv`
 4. Record per trial: kill timestamp, recovery timestamp, delta; plus whether the
    pipeline completed **without intervention**.
 5. Report the median of the measured deltas, the spread, and any timeouts.
@@ -83,7 +83,7 @@ original claim describes.
 
 ### Layer 1, Nomad reschedules the allocation
 
-`S4-preemption-noretry.tsv`, 5-sample parallel workflow, victims selected from
+`E3-preemption-noretry.tsv`, 5-sample parallel workflow, victims selected from
 one run's task jobs:
 
 | Trial | Process | Recovery (s) |
@@ -144,7 +144,7 @@ execution continued through TBLIST, TBPILE and TBVARIANTS.
 
 ### Combined, this is the number that replaces "47 s"
 
-`S4-preemption.tsv` (both runs, `run_mode` column distinguishes them):
+`E3-preemption.tsv` (both runs, `run_mode` column distinguishes them):
 
 | | Value |
 |---|---|

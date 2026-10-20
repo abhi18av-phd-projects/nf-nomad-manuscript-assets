@@ -1,6 +1,6 @@
 # nf-sleep-random
 
-A synthetic Nextflow pipeline for **X3, substrate-recovery testing**. Every task sleeps a
+A synthetic Nextflow pipeline for **E3, substrate-recovery testing**. Every task sleeps a
 seeded pseudo-random duration; none of them compute anything.
 
 ```bash
@@ -26,5 +26,5 @@ Each task writes its planned and actual duration plus its allocation ID, so a co
 also records which node ran what, enough to confirm that rescheduled tasks moved.
 
 Scope. This measures how the substrate recovers, not whether a pipeline computes the right
-answer. Correctness is X1's job, on real pipelines and real data. Say so in S4, or a reviewer
+answer. Correctness is E1's job, on real pipelines and real data. Say so in S4, or a reviewer
 may read a synthetic workload as a biological result.

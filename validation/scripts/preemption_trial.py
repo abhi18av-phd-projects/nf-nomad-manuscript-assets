@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""preemption_trial.py — X3: measure how fast the executor recovers a preempted task.
+"""preemption_trial.py — E3: measure how fast the executor recovers a preempted task.
 
 Measures, per trial, the interval between a running task allocation being killed
 and a replacement allocation for that same task reaching `running`:
@@ -38,7 +38,7 @@ Usage:
 
     # actually run
     ./preemption_trial.py --job-prefix nf-abc123 --trials 10 --execute \\
-        --out S4-preemption.tsv
+        --out E3-preemption.tsv
 
 Environment: NOMAD_ADDR, NOMAD_TOKEN, NOMAD_NAMESPACE (standard Nomad vars).
 """
@@ -157,7 +157,7 @@ def main():
         time.sleep(args.settle)
 
     deltas = [float(r["delta_s"]) for r in rows if r["delta_s"]]
-    print("\n=== X3 preemption recovery ===")
+    print("\n=== E3 preemption recovery ===")
     print(f"trials: {len(rows)}   recovered: {len(deltas)}   timed out: {len(rows)-len(deltas)}")
     if deltas:
         print(f"median: {statistics.median(deltas):.2f}s   min: {min(deltas):.2f}s   max: {max(deltas):.2f}s")

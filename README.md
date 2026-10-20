@@ -56,9 +56,9 @@ flowchart TB
 
 | | Reproduce with | Measured data |
 |---|---|---|
-| E1 | `x1-armA-local.config`, `x1-armB-nomad-posix.config` | [`X1-substrate-neutrality/`](validation/results/X1-substrate-neutrality/) |
-| E2 | `x2-fusion.config`, `x2-s5cmd.config` | [`X2-mode-equivalence/`](validation/results/X2-mode-equivalence/) |
-| E3 | `validation/scripts/preemption_trial.py` | [`X3-preemption/`](validation/results/X3-preemption/) |
+| E1 | `e1-armA-local.config`, `e1-armB-nomad-posix.config` | [`E1-executor-neutrality/`](validation/results/E1-executor-neutrality/) |
+| E2 | `e2-fusion.config`, `e2-s5cmd.config` | [`E2-storage-plane-equivalence/`](validation/results/E2-storage-plane-equivalence/) |
+| E3 | `validation/scripts/preemption_trial.py` | [`E3-preemption-recovery/`](validation/results/E3-preemption-recovery/) |
 
 ## What is here
 
@@ -68,7 +68,7 @@ flowchart TB
 | `templates/cloud-gcp/` | A GCP preemptible spot fleet joined over an overlay network. This is where the preemption result is measured. |
 | `templates/ARCHITECTURE.md` | Diagrams of what each template provisions. |
 | `validation/configs/` | One Nextflow config per work-directory mode: shared POSIX, Fusion, nf-nomad-s5cmd. |
-| `validation/pipelines/` | A synthetic sleep workload for exercising recovery. The reported preemption trials used the X1 pipeline, not this. |
+| `validation/pipelines/` | A synthetic sleep workload for exercising recovery. The reported preemption trials used the E1 pipeline, not this. |
 | `validation/results/` | The measured datasets behind the manuscript, one directory per experiment. |
 | `validation/scripts/` | Digest comparison, trace metrics, preemption timing. |
 | `protocol/` | The three documents above. |

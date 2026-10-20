@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""Publication figure for the X3 preemption experiment.
+"""Publication figure for the E3 preemption experiment.
 
 Reads the two trial manifests and draws the two-layer result: Nomad's
 allocation-level recovery time (panel A), and whether the pipeline itself
 survived under each Nextflow error-handling configuration (panel B).
 
 Every value is read from the TSVs; nothing is hard-coded except the panel-B
-outcomes, which are recorded in the X3 README and cited there.
+outcomes, which are recorded in the E3 README and cited there.
 
     python3 validation/scripts/plot_preemption.py \
-        --results validation/results/X3-preemption \
+        --results validation/results/E3-preemption-recovery \
         --out writeup/figures/fig-09-preemption-recovery
 
 Writes .png (400 dpi) and .pdf next to --out.
@@ -108,7 +108,7 @@ def panel_a(ax, rows):
 
 
 def panel_b(ax):
-    # Outcomes recorded in validation/results/X3-preemption/README.md.
+    # Outcomes recorded in validation/results/E3-preemption-recovery/README.md.
     rows = ["Default error handling", "errorStrategy = 'retry'"]
     cols = ["Nomad replaces\nthe allocation", "Pipeline continues\nto completion"]
     outcome = [[True, False], [True, True]]
@@ -169,8 +169,8 @@ def main():
     a = ap.parse_args()
 
     res = pathlib.Path(a.results)
-    rows = read_trials(res / "S4-preemption-noretry.tsv", "default")
-    rows += read_trials(res / "S4-preemption-retry.tsv", "retry")
+    rows = read_trials(res / "E3-preemption-noretry.tsv", "default")
+    rows += read_trials(res / "E3-preemption-retry.tsv", "retry")
     if not rows:
         raise SystemExit("no trials with a recorded delta_s")
 

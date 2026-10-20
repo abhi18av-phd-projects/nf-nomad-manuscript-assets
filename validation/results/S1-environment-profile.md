@@ -15,7 +15,7 @@ reproducibility.
 | Task drivers available | `docker`, `containerd`, `podman`, `singularity`, `exec`, `exec2`, `java`, `raw_exec`, `qemu` |
 | Driver used for tasks | **`docker`** (non-privileged) |
 
-## Execution node (X1 both arms, X0 verification runs)
+## Execution node (E1 both arms, X0 verification runs)
 
 | Property | Value |
 |---|---|
@@ -26,7 +26,7 @@ reproducibility.
 | Work-dir mount | same path (`/work`) in the head job and every task job |
 | Reserved cores at test time | 2 of 48 (unrelated tenant) |
 
-Compute-pool nodes (used for multi-node X2/X3) are materially smaller:
+Compute-pool nodes (used for multi-node E2/E3) are materially smaller:
 8 cores/7.9 GB, 24 cores/24 GB, 16 cores/20 GB — the resource ceiling in the
 configs is sized to fit them.
 

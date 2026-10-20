@@ -1,4 +1,4 @@
-# X1, substrate neutrality: does running through Nomad change the result?
+# E1, substrate neutrality: does running through Nomad change the result?
 
 Run date: 2026-08-06. Verdict: substrate-neutral. The biological result is
 unchanged by the execution substrate; the residual difference is smaller in scope
@@ -112,7 +112,7 @@ orchestrator involved, at the same magnitude.
 | `armA/execution_trace-armA.txt` | per-task trace, local executor |
 | `armB/execution_trace-armB.txt` | per-task trace, nf-nomad |
 | `armA-digests.tsv`, `armB-digests.tsv` | SHA-256 manifests (raw + normalised) |
-| `x1-runtime-summary.tsv` | derived runtime / placement-latency percentiles |
+| `E1-runtime-summary.tsv` | derived runtime / placement-latency percentiles |
 | `publication.05samples.*.csv/tsv` | sample sheet + cohort file used |
 | `publication.90samples.ena.csv` | sample sheet for the full-scale run (see below) |
 
@@ -123,11 +123,11 @@ Reproduce the comparison:
 ```
 
 Acceptance criteria and the normalisation rules are defined in
-`../X1-reference-baseline/README.md`.
+`../E1-reference-baseline/README.md`.
 
 ---
 
-# X1 at full scale, 90 samples
+# E1 at full scale, 90 samples
 
 Run dates: arm A 2026-08-07/08, arm B 2026-08-09/10. **Verdict: substrate-neutral,
 and more tightly so than the 5-sample pilot.** Same design as above: two arms, same node,

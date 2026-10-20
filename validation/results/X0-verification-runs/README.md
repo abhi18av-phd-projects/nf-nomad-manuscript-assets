@@ -52,4 +52,4 @@ on warm images, sit at **p50 ≈ 3–5 s**. So:
 
 These are also 4–8-task toy pipelines on a single node; they characterise the
 submit→start path, not throughput or scaling. The manuscript's runtime and
-latency claims come from the X1/X2 runs on real pipelines, not from these.
+latency claims come from the E1/E2 runs on real pipelines, not from these.

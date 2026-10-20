@@ -6,8 +6,8 @@
 #
 #   nomad var put nomad/jobs/nextflow-head \
 #     nomad_token=<ACL token the Nextflow executor uses to submit process jobs> \
-#     s3_access_key=<S3 access key for the work-dir bucket, X2 only> \
-#     s3_secret_key=<S3 secret key, X2 only>
+#     s3_access_key=<S3 access key for the work-dir bucket, E2 only> \
+#     s3_secret_key=<S3 secret key, E2 only>
 #
-# For X1 (host-volume POSIX work dir) the s3_* keys are unused but harmless.
+# For E1 (host-volume POSIX work dir) the s3_* keys are unused but harmless.
 # Give the token an ACL policy allowing job submit/read in the target namespace.

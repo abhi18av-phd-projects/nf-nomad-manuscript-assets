@@ -5,7 +5,7 @@ are the ones the manuscript reports; the datasets behind them are in
 [`../validation/results/`](../validation/results/), so you can compare against the actual runs
 rather than against prose.
 
-## X1 — substrate neutrality
+## E1 — substrate neutrality
 
 `output_digests.py` prints one line per file and a summary. A correct run gives near-total
 agreement, not perfect agreement:
@@ -31,7 +31,7 @@ A useful control: run the pipeline serially and in parallel on one machine, with
 at all. The same two-table signature appears, which places the difference in parallel alignment
 rather than in the executor.
 
-## X1 timing
+## E1 timing
 
 | | reference run |
 |---|---|
@@ -55,7 +55,7 @@ The gap is the cost of submitting each task to a scheduler and waiting for place
 per-task cost, so it is negligible for long tasks and material for very short ones. Seeing a
 median in this range is the expected result, not a problem.
 
-## X3 — preemption recovery
+## E3 — preemption recovery
 
 | | reference run |
 |---|---|
@@ -74,7 +74,7 @@ within the limit and are reported rather than dropped.
 Restart it and rerun; the harness guards against this but a cluster left broken by an
 interrupted run can still produce the artefact.
 
-## X2 — mode equivalence
+## E2 — mode equivalence
 
 Fusion and `nf-nomad-s5cmd` should produce equivalent outputs, with per-mode walltime reported
 without claiming either is faster unless the data supports it.

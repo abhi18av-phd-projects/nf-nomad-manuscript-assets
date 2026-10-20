@@ -10,7 +10,7 @@
 #   # from this configs/ directory (the *.config files are embedded at submit time):
 #   nomad job run \
 #     -var 'pipeline=mtbseq-nf' \
-#     -var 'config_file=x1-armB-nomad-posix.config' \
+#     -var 'config_file=e1-armB-nomad-posix.config' \
 #     -var 'target_node=<node-name>' \
 #     -var 'nextflow_args=-profile docker --input <sheet> -w /work/work-armB' \
 #     -var 'nextflow_image=nextflow/nextflow:26.04.3' \
@@ -41,7 +41,7 @@ variable "plugin_version" {
 variable "target_node" {
   type    = string
   default = ""
-}   # pin to one node for X1; empty = any
+}   # pin to one node for E1; empty = any
 variable "work_volume" {
   type    = string
   default = "nf-work"
@@ -63,7 +63,7 @@ job "nextflow-head" {
   meta { run_uuid = uuidv4() }   # force a fresh allocation on every submit
 
   group "head" {
-    # X1 pins to a single node so head + tasks share one POSIX filesystem.
+    # E1 pins to a single node so head + tasks share one POSIX filesystem.
     dynamic "constraint" {
       for_each = var.target_node != "" ? [var.target_node] : []
       content {

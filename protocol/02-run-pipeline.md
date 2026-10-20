@@ -2,7 +2,7 @@
 
 **Pipeline revisions are pinned below and should stay pinned.** The `-r` flags name the
 exact revisions the deposited results were produced from: `mycobactopia-org/MTBseq-nf`
-`v1.0.0` for X1 and `nf-core/detaxizer` `1.3.0` for X2. Dropping `-r` resolves the default
+`v1.0.0` for E1 and `nf-core/detaxizer` `1.3.0` for E2. Dropping `-r` resolves the default
 branch instead, which moves, so the digest manifests would be compared against a different
 pipeline than the one that produced them. The single exception is the X0 cluster check,
 which is recorded as having run `nf-core/demo -r dev`; `dev` is a branch rather than a tag,
@@ -15,24 +15,24 @@ before use.
 
 ```mermaid
 flowchart TB
-    subgraph X1["X1 — does the executor change the result?"]
+    subgraph E1["E1 — does the executor change the result?"]
         direction LR
         A1["arm A<br/>local executor<br/>no Nomad"] --> C1{"compare<br/>SHA-256 digests"}
         B1["arm B<br/>nf-nomad<br/>shared POSIX"] --> C1
     end
-    subgraph X2["X2 — do the data paths agree?"]
+    subgraph E2["E2 — do the data paths agree?"]
         direction LR
         A2["Fusion + Wave"] --> C2{"compare<br/>outputs"}
         B2["nf-nomad-s5cmd"] --> C2
     end
-    subgraph X3["X3 — does the cluster survive losing nodes?"]
+    subgraph E3["E3 — does the cluster survive losing nodes?"]
         direction LR
         K["stop a busy node<br/>mid-run"] --> M["time recovery to<br/>full desired count"]
     end
-    X1 --> X2 --> X3
-    style X1 fill:#e8f5e9,stroke:#2e7d32
-    style X2 fill:#e1f5ff,stroke:#0066cc
-    style X3 fill:#fdecea,stroke:#c62828
+    E1 --> E2 --> E3
+    style E1 fill:#e8f5e9,stroke:#2e7d32
+    style E2 fill:#e1f5ff,stroke:#0066cc
+    style E3 fill:#fdecea,stroke:#c62828
 ```
 
 Set the cluster address once, for every experiment:
@@ -47,23 +47,23 @@ export NOMAD_TOKEN=$(cat templates/local-docker/.nomad-token)
 Before measuring, confirm the plugin works end to end on this cluster:
 
 ```bash
-nextflow run nf-core/demo -r dev -profile test,docker -c validation/configs/x1-armB-nomad-posix.config
+nextflow run nf-core/demo -r dev -profile test,docker -c validation/configs/e1-armB-nomad-posix.config
 ```
 
 If this fails, nothing below is interpretable. Fix it first.
 
-## X1 — substrate neutrality
+## E1 — substrate neutrality
 
 Both arms run the same pipeline over the same inputs on the same hardware. Only the executor
 differs, which is what makes any output difference attributable to it.
 
 ```bash
 # arm A — Nextflow's local executor, no Nomad in the path
-nextflow run mycobactopia-org/MTBseq-nf -r v1.0.0 -c validation/configs/x1-armA-local.config \
+nextflow run mycobactopia-org/MTBseq-nf -r v1.0.0 -c validation/configs/e1-armA-local.config \
   -with-trace -with-report -with-timeline
 
 # arm B — the same pipeline through nf-nomad
-nextflow run mycobactopia-org/MTBseq-nf -r v1.0.0 -c validation/configs/x1-armB-nomad-posix.config \
+nextflow run mycobactopia-org/MTBseq-nf -r v1.0.0 -c validation/configs/e1-armB-nomad-posix.config \
   -with-trace -with-report -with-timeline
 ```
 
@@ -76,7 +76,7 @@ python3 validation/scripts/output_digests.py <armA-outdir> <armB-outdir>
 Run it twice: five samples for the timed comparison, and the full 90 for the digest claim. The
 timed run must have both arms on one node, or the walltime numbers mean nothing.
 
-## X2 — mode equivalence
+## E2 — mode equivalence
 
 Same executor, same cluster, different work-directory backend. Needs MinIO or another
 S3-compatible endpoint reachable from every worker.
@@ -99,8 +99,8 @@ was already read once`. That is a bug in the publish path rather than in the wor
 mode, so keeping outputs local keeps it out of the comparison.
 
 ```bash
-nextflow run nf-core/detaxizer -r 1.3.0 -profile test -c validation/configs/x2-fusion.config -with-trace --outdir <local-dir>
-nextflow run nf-core/detaxizer -r 1.3.0 -profile test -c validation/configs/x2-s5cmd.config  -with-trace --outdir <local-dir>
+nextflow run nf-core/detaxizer -r 1.3.0 -profile test -c validation/configs/e2-fusion.config -with-trace --outdir <local-dir>
+nextflow run nf-core/detaxizer -r 1.3.0 -profile test -c validation/configs/e2-s5cmd.config  -with-trace --outdir <local-dir>
 python3 validation/scripts/output_digests.py <fusion-outdir> <s5cmd-outdir>
 ```
 
@@ -139,18 +139,18 @@ curl -s https://raw.githubusercontent.com/nf-core/test-datasets/<branch>/samples
 Check the resolved profile for `s3://` before starting a long run. `-profile test` is not
 affected, since its data comes over HTTPS.
 
-## X3 — preemption resilience
+## E3 — preemption resilience
 
 Start a workload, then take allocations away underneath it. The deposited trials were produced
-on the X1 five-sample parallel workflow and its 41 tasks, not on a synthetic one, so reproduce
+on the E1 five-sample parallel workflow and its 41 tasks, not on a synthetic one, so reproduce
 them that way:
 
 ```bash
-nextflow run mycobactopia-org/MTBseq-nf -r v1.0.0 -c validation/configs/x1-armB-nomad-posix.config \
+nextflow run mycobactopia-org/MTBseq-nf -r v1.0.0 -c validation/configs/e1-armB-nomad-posix.config \
   --input <5-sample sheet> --parallel true &
 
 python3 validation/scripts/preemption_trial.py \
-  --job-prefix <task-job-prefix> --trials 10 --execute --out S4-preemption.tsv
+  --job-prefix <task-job-prefix> --trials 10 --execute --out E3-preemption.tsv
 ```
 
 `--job-prefix` scopes every kill to the one pipeline run, and the harness aborts rather than
@@ -159,7 +159,7 @@ default is a dry run that prints the candidates and changes nothing.
 
 Run the trials twice, once under Nextflow's default error handling and once with
 `errorStrategy = 'retry'`. The deposited data is both runs together, four trials and five, in
-`S4-preemption-noretry.tsv` and `S4-preemption-retry.tsv`. The two configurations are what
+`E3-preemption-noretry.tsv` and `E3-preemption-retry.tsv`. The two configurations are what
 separate allocation recovery from pipeline survival, which is the finding rather than a detail
 of the method.
 
@@ -176,7 +176,7 @@ Neither produced the reported numbers.
 
 ## X4 — placement latency
 
-No separate run. Derive it from the traces X1 and X2 already produced:
+No separate run. Derive it from the traces E1 and E2 already produced:
 
 ```bash
 python3 validation/scripts/trace_metrics.py <trace-file> ...

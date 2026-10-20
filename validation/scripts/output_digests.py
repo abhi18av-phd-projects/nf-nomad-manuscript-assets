@@ -11,7 +11,7 @@ otherwise-deterministic outputs. MTBseq, for example, writes a leading `Date`
 column into its `.tab` tables, so two runs of the same pipeline on the same data
 produce different bytes on different days. A raw-digest mismatch would then be
 read as "the substrate changed the biological answer", which is wrong. The
-normalised digest answers the question the substrate-neutrality experiment (X1)
+normalised digest answers the question the substrate-neutrality experiment (E1)
 actually asks — *did the results change?* — while the raw digest is retained for
 full transparency.
 

@@ -1,4 +1,4 @@
-# X2 — work-directory mode equivalence (Fusion vs nf-nomad-s5cmd)
+# E2 — work-directory mode equivalence (Fusion vs nf-nomad-s5cmd)
 
 **Run date:** 2026-08-13. Every sequence output is bit-identical between the two
 object-store work-directory mechanisms, so the modes are interchangeable.

@@ -1,6 +1,6 @@
-# X1 reference baseline, published mtbseq-nf results
+# E1 reference baseline, published mtbseq-nf results
 
-Ground truth for the substrate-neutrality experiment (X1), taken from the
+Ground truth for the substrate-neutrality experiment (E1), taken from the
 published MTBseq-nf supplementary dataset:
 
 > *MTBseq-nf publication supplementary material with results of all individual
@@ -10,7 +10,7 @@ published MTBseq-nf supplementary dataset:
 (`pub-05samples.zip`), produced by `../../scripts/output_digests.py`. It carries
 both a raw digest and a normalised digest per file.
 
-## Why X1 compares against this, not just arm A vs arm B
+## Why E1 compares against this, not just arm A vs arm B
 
 The published archive also contains 3 replicate runs at 90 samples for *both*
 mtbseq-nf and standard (non-Nextflow) MTBseq. That makes the correctness check
@@ -27,7 +27,7 @@ on different days, regardless of whether the biology is identical. Verified
 against this dataset by re-dating a copy: 28/30 files stayed bit-identical, and
 the 2 date-bearing tables differed raw but were identical once normalised.
 
-So the X1 acceptance criterion must be stated as:
+So the E1 acceptance criterion must be stated as:
 
 - **bit-identical for all outputs without run-stamped fields, and**
 - **identical after declared normalisation** for those with them, with the
@@ -85,7 +85,7 @@ depth counts, 4 present under different paths (serial writes `tbfull/Statistics`
 and `tbfull/Classification`; parallel writes `tbstats/Statistics` and
 `tbstrains/Classification`, same content, different layout).
 
-Consequence for X1's acceptance criterion. "Bit-identical outputs" is the
+Consequence for E1's acceptance criterion. "Bit-identical outputs" is the
 wrong bar for this pipeline and would fail for reasons unrelated to the
 substrate. State it in three tiers instead:
 
@@ -98,13 +98,13 @@ substrate. State it in three tiers instead:
    alignment/pileup that the experiment plan requires be enumerated rather than
    waved at; it is a property of BWA/pileup threading, not of the executor.
 
-X1 therefore claims substrate neutrality of the biological result, evidenced
+E1 therefore claims substrate neutrality of the biological result, evidenced
 by identical calls across arms, with the coverage-count spread reported and
 bounded by the published reference's own serial-vs-parallel spread.
 
 ---
 
-## Run-configuration findings (X1 execution, 2026-08-06)
+## Run-configuration findings (E1 execution, 2026-08-06)
 
 Four things had to be right before either arm produced a valid run. Each failed
 fast and cheaply, but each would have invalidated a long run silently:

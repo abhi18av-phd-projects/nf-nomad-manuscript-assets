@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Publication figure for the X1 paired timed run.
+"""Publication figure for the E1 paired timed run.
 
 Panel A is total walltime per arm. Panel B is the per-task placement latency
 distribution, defined exactly as trace_metrics.py defines it, `start - submit`
@@ -10,7 +10,7 @@ per task by roughly two orders of magnitude, and panel A is what shows that it
 does not follow through to the wall clock at this task granularity.
 
     python3 validation/scripts/plot_runtime.py \
-        --results validation/results/X1-substrate-neutrality \
+        --results validation/results/E1-executor-neutrality \
         --out writeup/figures/fig-08-runtime-panels
 """
 
