@@ -111,8 +111,10 @@ graph TB
     style NFS fill:#e8f5e9,stroke:#2e7d32
 ```
 
-The spot pool is where E3 preemption trials run: instances are reclaimed by GCP, and the
-executor must reschedule the affected tasks. MinIO and the NFS volume are the two work-directory
+The spot pool is where GCP reclaims capacity on its own schedule, and the executor must
+reschedule the affected tasks. The E3 reported in the manuscript was measured differently, by
+stopping single task allocations on the institutional cluster; see
+`../validation/results/E3-preemption-recovery/`. MinIO and the NFS volume are the two work-directory
 backends; Fusion needs neither, only network reach to an object store.
 
 ---
@@ -155,7 +157,7 @@ substrate for the resilience claim.
 | **X0** provision + profile | **`templates/local-docker`** (Docker Compose) | ready |
 | **E1** substrate neutrality | `sun-aither` (existing cluster) | ready |
 | **E2** mode equivalence | `gcp-infra` (MinIO + Fusion) | ready |
-| **E3** preemption, 10 trials | `gcp-infra` spot pool, or `spot-compute` | ready |
+| **E3** preemption | any running cluster, with `validation/scripts/preemption_trial.py`; measured on the institutional cluster | ready |
 
 The local path is the one a reviewer without cloud credentials reaches for first, and it is now
 the verified one (2026-08-06). The cloud templates are reviewable as code but their at-scale

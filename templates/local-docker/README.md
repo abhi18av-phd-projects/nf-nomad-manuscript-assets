@@ -74,7 +74,7 @@ This variant separates the roles:
 | Topology | 1 agent, server + client | 1 server + **N client containers** |
 | Scaling | fixed | `CLIENTS=5 ./scripts/start.sh` |
 | Node loss | not possible | `./scripts/chaos.sh` stops a client |
-| Purpose | functional / CI | **E3 preemption trials**, plus X0 and E2 |
+| Purpose | functional / CI | node-loss trials, plus X0 and E2 |
 
 Everything else is kept deliberately close to upstream so the two do not drift: same Nomad
 version, same ACL bootstrap, same MinIO service, same `s5cmd` binary location.
@@ -90,8 +90,11 @@ Brought up and exercised end to end on Docker Desktop 24.0.2, 8 CPU / 16 GB, mac
 | Recovery | **4 trials, median 26 s** (24, 26, 26, 27) — node stopped, allocations displaced, job back to 6/6 on survivors |
 | Storage-free | the last trial ran on a cluster with **no object store at all**, confirming reallocation needs only the scheduler |
 
-`trials.tsv` holds the rows. n=3 is a check, not a result. E3 calls for 10 trials
-against the randomised workload rather than a fixed-duration sleeper.
+`trials.tsv` holds one of these rows (24 s). This is a check, not a result, and it is
+not the E3 reported in the manuscript: E3 stopped single task allocations on the
+institutional cluster with `validation/scripts/preemption_trial.py` (see
+`validation/results/E3-preemption-recovery/`). `chaos.sh` stops a whole client, so it
+measures node loss, which the manuscript does not report.
 
 ## What each experiment gets
 
@@ -99,7 +102,7 @@ against the randomised workload rather than a fixed-duration sleeper.
 |---|---|
 | **X0** provision + first pipeline | time `start.sh` → first completed pipeline |
 | **E2** mode equivalence | `WITH_STORAGE=1` brings up MinIO for the s5cmd mode; Fusion needs only network reach |
-| **E3** preemption | `chaos.sh` stops a client mid-run; measure reschedule latency |
+| Node loss | `chaos.sh` stops a client mid-run; measure reschedule latency onto the survivors |
 
 E1 (substrate neutrality) needs real hardware and stays on the institutional cluster.
 

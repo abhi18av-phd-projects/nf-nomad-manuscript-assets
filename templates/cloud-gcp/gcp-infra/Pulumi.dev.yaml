@@ -10,8 +10,10 @@ config:
   # Spot pool: GCP MIG managed by Nomad Autoscaler (min=0, max below)
   gcp-typescript:spotPoolMaxSize: "3"
   # ── Nomad federation ────────────────────────────────────────────────────────
-  # Join this stack's Nomad server into the existing sun-aither Raft via Tailscale.
-  gcp-typescript:joinSunAither: "true"
+  # Off for the manuscript deployment: the stack bootstraps its own Nomad server
+  # and ACLs, so it stands up without any pre-existing cluster. Set "true" only to
+  # join an existing Nomad Raft over Tailscale; the join list below is read only then.
+  gcp-typescript:joinSunAither: "false"
   gcp-typescript:sunAitherServerJoin:
     - "<NOMAD_NODE_TAILNET_IP>"
     - "<NOMAD_NODE_TAILNET_IP>"

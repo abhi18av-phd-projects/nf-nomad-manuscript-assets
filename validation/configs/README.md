@@ -13,7 +13,7 @@ so these files are publishable as-is, no cluster identity, endpoints, or tokens.
 | `e1-armB-nomad-posix.config` | **E1** | Nextflow + **nf-nomad** | **shared-POSIX host volume** | 1 (pinned) |
 | `e2-fusion.config` | **E2** (mode equivalence) | nf-nomad + **Fusion + Wave** | **S3** | multi |
 | `e2-s5cmd.config` | **E2** | nf-nomad + **s5cmd** | **S3** | multi |
-| `../chaos/` | **E3** (preemption) | nf-nomad + chaos harness | — | multi |
+| `e1-armB-nomad-posix.config` + `../scripts/preemption_trial.py` | **E3** (preemption) | nf-nomad | **shared-POSIX host volume** | 1 (pinned) |
 | `nextflow.trace.config` | all | — | — | — |
 
 - **E1** varies only the executor, local vs Nomad, on one node with a shared POSIX

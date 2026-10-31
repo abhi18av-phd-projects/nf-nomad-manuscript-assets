@@ -11,8 +11,9 @@ placeholder in angle brackets, substitute before deploying.
 
 ## `cloud-gcp/`, heterogeneous, preemptible
 
-Three Pulumi projects that compose into the cloud topology used for the preemption and
-heterogeneous-pool claims.
+Three Pulumi projects that compose into a cloud topology with heterogeneous, preemptible
+capacity. The manuscript's E3 was not measured on it; see
+`../validation/results/E3-preemption-recovery/`.
 
 | Project | Provisions |
 |---|---|

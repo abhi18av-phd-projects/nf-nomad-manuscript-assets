@@ -6,7 +6,7 @@ and a replacement allocation for that same task reaching `running`:
 
     delta = t(replacement running) - t(kill issued)
 
-and reports the median over N independent trials, plus whether the pipeline
+and reports the median over N trials, plus whether the pipeline
 completed without human intervention.
 
 WHY THIS EXISTS RATHER THAN THE GENERIC CHAOS HARNESS

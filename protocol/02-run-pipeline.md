@@ -25,9 +25,9 @@ flowchart TB
         A2["Fusion + Wave"] --> C2{"compare<br/>outputs"}
         B2["nf-nomad-s5cmd"] --> C2
     end
-    subgraph E3["E3 — does the cluster survive losing nodes?"]
+    subgraph E3["E3 — is a preempted task recovered?"]
         direction LR
-        K["stop a busy node<br/>mid-run"] --> M["time recovery to<br/>full desired count"]
+        K["stop a running task<br/>allocation mid-run"] --> M["time to a replacement<br/>allocation running"]
     end
     E1 --> E2 --> E3
     style E1 fill:#e8f5e9,stroke:#2e7d32
@@ -163,8 +163,7 @@ Run the trials twice, once under Nextflow's default error handling and once with
 separate allocation recovery from pipeline survival, which is the finding rather than a detail
 of the method.
 
-Trials that failed to disrupt any running work are recorded as invalid and excluded, rather
-than counted as instant recoveries. The manifests keep the harness's own numbering, so the
+Trials that found no running task are skipped rather than counted as instant recoveries. The manifests keep the harness's own numbering, so the
 excluded attempts hold their positions and the nine valid trials are numbered 2 to 10.
 
 Two other pieces sit nearby and measure something else. `templates/local-docker/scripts/chaos.sh`
