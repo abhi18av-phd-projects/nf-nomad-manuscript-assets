@@ -16,8 +16,8 @@ keywords:
   - workflow management
   - reproducibility
   - infrastructure as code
-version: 1.0.0
-date-released: 2026-10-20
+version: 1.0.1
+date-released: 2026-10-31
 authors:
   - given-names: Abhinav
     family-names: Sharma

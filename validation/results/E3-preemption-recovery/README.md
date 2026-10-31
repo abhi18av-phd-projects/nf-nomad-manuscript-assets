@@ -1,13 +1,11 @@
-# E3, preemption recovery (the number that replaces the unverified "47 s")
+# E3, preemption recovery
 
-**Status: COMPLETE. 9 trials run, 9/9 recovered, median 15.63 s.** The result and
-methodology are below; the header previously said "trials not yet run" and was
-stale from the harness-building commit.
+**Status: complete.** Nine preemptions across two runs, 9/9 recovered, median
+15.63 s. With task retry enabled, the pipeline completed (exit 0, 3,076 s).
 
-The manuscript currently asserts a median recovery of *47 seconds across 10
-preemption trials*. That number is flagged in the claim-evidence matrix as
-possibly illustrative, no dataset backs it. E3 exists to produce a real one.
-If the measured median differs, the number changes; that is the point.
+E3 measures how quickly a pipeline task is recovered after its allocation is
+preempted, and whether the pipeline then survives. It stops task allocations,
+not nodes: every trial ran on the single 48-core execution node that E1 used.
 
 ## Why the upstream chaos harness was not used
 
@@ -50,7 +48,7 @@ services, it aborted on the first match (`abc-auth-svc` → term `auth`) and
 changed nothing; object store, auth service and database all remained `running`
 and S3 health stayed `200`.
 
-## Method (when run)
+## Method
 
 1. Start a pipeline run long enough to hold running tasks (the E1 5-sample
    parallel workflow: 41 tasks, ~48 min, sustains 5 concurrent per-sample steps).
@@ -76,10 +74,7 @@ and S3 health stayed `200`.
 
 ## Results, run 1 (2026-08-06): the two-layer finding
 
-The unverified "median 47 s" does not reproduce. Measured recovery is
-substantially faster, and, more importantly, the experiment revealed that
-preemption resilience is two independent layers, only one of which the
-original claim describes.
+The experiment showed that preemption resilience is two independent layers.
 
 ### Layer 1, Nomad reschedules the allocation
 
@@ -140,9 +135,10 @@ Run 2 repeated the trials with the realistic production configuration
 5/5 recovered, 0 timeouts. And decisively for layer 2: with retry enabled the
 pipeline survived every preemption and kept running, the log shows
 `Execution is retried (1)` → `Re-submitted process` for each killed task, and
-execution continued through TBLIST, TBPILE and TBVARIANTS.
+execution continued through TBLIST, TBPILE and TBVARIANTS. The run completed:
+exit status 0 after 3,076 s, every result directory present.
 
-### Combined, this is the number that replaces "47 s"
+### Combined
 
 `E3-preemption.tsv` (both runs, `run_mode` column distinguishes them):
 
@@ -156,11 +152,7 @@ execution continued through TBLIST, TBPILE and TBVARIANTS.
 | Range | 7.92 – 20.10 s |
 | Observations | 7.92, 11.23, 11.25, 14.52, 15.63, 18.95, 18.98, 20.08, 20.10 |
 
-**The manuscript's unverified "median 47 seconds" does not reproduce.** Measured
-median is 15.6 s, roughly three times faster. The number in §3.3 should be
-replaced with the measured value and the methodology below.
-
-### How to state this in the paper
+### Summary
 
 > Across 9 preemption trials on a 5-sample parallel workflow, every preempted
 > task was rescheduled and restarted, with a median recovery of 15.6 s
@@ -168,7 +160,7 @@ replaced with the measured value and the methodology below.
 > separate property: with Nextflow's default error handling the run aborts on the
 > first preemption despite the allocation being recovered, whereas with
 > `errorStrategy = 'retry'` the pipeline re-submitted each preempted task and
-> continued to completion unattended.
+> ran to completion unattended (exit 0, 3,076 s).
 
 ### Honest limitations
 
@@ -179,8 +171,15 @@ replaced with the measured value and the methodology below.
   these are warm-start figures; a cold image would add the pull.
 - Killing an allocation is a proxy for preemption: it exercises the same
   detect → reschedule → restart path, without a competing workload's scheduling.
-- Single node, single workflow, one cluster. The figure characterises this
-  executor's recovery path, not a general property of Nomad.
+- Single node, single workflow, one cluster. Task jobs were pinned to the 48-core
+  execution node, as in E1, and every victim ran there; the per-trial TSVs do not
+  record the node, but the harness's console output names it for each kill. No
+  node was drained or removed, so this is not a node-loss measurement. The figure
+  characterises this executor's recovery path, not a general property of Nomad.
+- An earlier attempt (run prefix `nf-c7d47bf1`) was discarded. Its work directory
+  collided with E1's, so a TBBWA task failed on `mkdir: can't create directory
+  'Bam': File exists` independently of any preemption. The two runs reported
+  here used an isolated work directory.
 - Trials 1–5 of run 2 and trial 1 of run 1 found no running victim and are
   recorded as waits, not as failures, they are excluded from the statistics
   rather than counted as zero-time recoveries.

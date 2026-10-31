@@ -46,11 +46,11 @@ flowchart TB
     B2 --> R2
   end
 
-  subgraph E3["E3 &nbsp;·&nbsp; does the cluster survive losing nodes?"]
+  subgraph E3["E3 &nbsp;·&nbsp; is a preempted task recovered?"]
     direction TB
-    H3["held constant<br/><i>pipeline · cluster</i>"]:::held
-    H3 --> C1["worker allocation terminated<br/>mid-run, 9 independent trials"]:::arm
-    C1 --> R3["<b>9 of 9 allocations rescheduled</b>, no intervention, no timeouts<br/><i>pipeline survival is a second layer: it needs errorStrategy=retry</i>"]:::res
+    H3["held constant<br/><i>pipeline · node</i>"]:::held
+    H3 --> C1["running task allocation stopped<br/>mid-run, 9 preemptions in 2 runs"]:::arm
+    C1 --> R3["<b>9 of 9 allocations rescheduled</b>, no intervention, no timeouts<br/><i>pipeline survival is a second layer: with errorStrategy=retry the run completed</i>"]:::res
   end
 ```
 
@@ -65,7 +65,7 @@ flowchart TB
 | Path | Contents |
 |---|---|
 | `templates/local-docker/` | One Nomad server and N clients as containers on a single machine. Docker is the only prerequisite. |
-| `templates/cloud-gcp/` | A GCP preemptible spot fleet joined over an overlay network. This is where the preemption result is measured. |
+| `templates/cloud-gcp/` | A GCP preemptible spot fleet joined over an overlay network, for exercising recovery on capacity GCP reclaims itself. The reported E3 was not measured here; see `validation/results/E3-preemption-recovery/`. |
 | `templates/ARCHITECTURE.md` | Diagrams of what each template provisions. |
 | `validation/configs/` | One Nextflow config per work-directory mode: shared POSIX, Fusion, nf-nomad-s5cmd. |
 | `validation/pipelines/` | A synthetic sleep workload for exercising recovery. The reported preemption trials used the E1 pipeline, not this. |

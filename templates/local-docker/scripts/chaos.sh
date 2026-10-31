@@ -25,7 +25,7 @@
 # no delta, rather than inventing a number.
 #
 # This measures SUBSTRATE RECOVERY, not pipeline correctness — pair it with
-# ../pipelines/nf-sleep-random so kills land at random points in task lifetimes.
+# ../../validation/pipelines/nf-sleep-random so kills land at random points in task lifetimes.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

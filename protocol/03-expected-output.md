@@ -59,20 +59,23 @@ median in this range is the expected result, not a problem.
 
 | | reference run |
 |---|---|
-| trials | 9, across two task-retry configurations |
+| trials | 9 preemptions across two runs, one per task-retry configuration |
 | recovered | 9 of 9, no operator intervention |
 | timeouts | 0 |
 | median recovery | 15.63 s |
 | range | 7.92 to 20.10 s |
+| run without retry | failed: the first preempted task was recorded as failed; exit 1 after 149 s |
+| run with `errorStrategy = 'retry'` | completed, exit 0 after 3,076 s |
 
-`trials.tsv` records one row per trial with the outcome column. Rows marked `NO_DISRUPTION` are
-trials where stopping the node did not actually interrupt running work; they are excluded from
-the median because they measure nothing. Rows marked `TIMEOUT` mean recovery was not confirmed
-within the limit and are reported rather than dropped.
+`preemption_trial.py --out` writes one row per trial that stopped an allocation: `trial`, `job`,
+`killed_alloc`, `kill_ts`, `recovered_ts` and `delta_s`, the seconds from the stop to another
+allocation of the same job running. An empty `delta_s` is a timeout, reported rather than
+dropped. A trial that finds no running task writes no row, so the numbering has gaps; in the
+deposited runs, harness trials 1 (first run) and 1 to 5 (second run) found none.
 
-**If you see 0 s or 1 s recoveries**, the cluster was already degraded when the trial started.
-Restart it and rerun; the harness guards against this but a cluster left broken by an
-interrupted run can still produce the artefact.
+`templates/local-docker/scripts/chaos.sh` writes a different file, `trials.tsv`, with an
+`outcome` column. It stops a whole client and so measures node loss, which the manuscript does
+not report.
 
 ## E2 — mode equivalence
 

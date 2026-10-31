@@ -40,12 +40,12 @@ EXPERIMENTS = [
     },
     {
         "id": "E3",
-        "question": "Does the pipeline finish despite\ntransient nodes leaving?",
-        "held": "one running pipeline\nnine independent trials",
+        "question": "Is a preempted task recovered,\nand does the run complete?",
+        "held": "MTBseq-nf, 5 samples, one node\nnine preemptions in two runs",
         "arms": ["Default\nerror handling", "errorStrategy\n= 'retry'"],
-        "varies": "worker capacity, removed mid-run",
-        "arms_note": "each repeated under",
-        "criterion": "Every trial returns to its full\ncomplement of running\nallocations without operator\nintervention, inside the timeout",
+        "varies": "a running task allocation, stopped",
+        "arms_note": "one run under each",
+        "criterion": "Every stopped allocation\nreplaced without operator\nintervention; with retry,\nthe pipeline completes",
     },
 ]
 

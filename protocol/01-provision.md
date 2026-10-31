@@ -1,7 +1,8 @@
 # 1 — Provision a cluster
 
-Two paths. Take the first unless you specifically need to reproduce the preemption result on
-real reclaimed capacity.
+Two paths. Take the first unless you specifically need real reclaimed capacity. Neither is
+needed to reproduce the reported E3, which stops task allocations on whatever cluster the
+pipeline runs on (see [02](02-run-pipeline.md)).
 
 ```mermaid
 flowchart LR
@@ -36,7 +37,7 @@ nomad node status        # expect 1 server + CLIENTS clients, all 'ready'
 ```
 
 The server runs with `client { enabled = false }`, so stopping a client exercises rescheduling
-rather than decapitating the cluster. That is what makes the preemption trials meaningful here.
+rather than decapitating the cluster. That is what makes node-loss trials with `chaos.sh` meaningful here.
 
 Object-store modes additionally need MinIO, which is opt-in because the scheduling tests do not
 stage data:
